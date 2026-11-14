@@ -23,6 +23,13 @@ sys.path.insert(0, str(BACKEND / "data"))
 
 from fetch_power import PARAMS, get_monthly_point  # noqa: E402
 from trendlab import analyze_series  # noqa: E402
+from trendlab.scan import SCAN_VARS  # noqa: E402
+
+# The globe shows five variables; the point API must offer all five, or a click on a soil-wetness or
+# wind square would open a different variable. Registered here so backend/data (the data session's)
+# stays untouched; get_monthly_point only needs the id, name and units.
+for _id, (_name, _units, *_rest) in SCAN_VARS.items():
+    PARAMS.setdefault(_id, (_name, "index (0-1)" if _units == "0-1" else _units))
 
 CASES = BACKEND / "data" / "cases"
 

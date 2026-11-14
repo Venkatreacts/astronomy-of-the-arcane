@@ -130,3 +130,11 @@ def test_point_returns_the_confidence_interval(monkeypatch):
     for method in ("naive", "honest"):
         lo, hi = r.json()["analysis"][method]["slope_ci_per_year"]
         assert lo < r.json()["analysis"][method]["slope_per_year"] < hi
+
+
+def test_every_globe_variable_can_be_opened_as_a_point():
+    # Regression: clicking a soil-wetness or wind square on the globe opened a different variable,
+    # because the point API only knew temperature, rain, humidity and sunlight.
+    from trendlab.scan import SCAN_VARS
+    ids = {p["id"] for p in client.get("/api/params").json()}
+    assert set(SCAN_VARS) <= ids
