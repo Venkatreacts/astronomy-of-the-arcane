@@ -6,4 +6,3 @@ scikit-learn>=1.5
 requests>=2.31
 fastapi>=0.115
 uvicorn>=0.30
-mcp>=2.3,<3

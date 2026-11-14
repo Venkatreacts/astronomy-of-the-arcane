@@ -56,20 +56,22 @@ export default function App() {
           <h2>How we know the honest test is honest</h2>
           <div className="cols">
             <p>
-              We make fake Earth data where we know the truth. On pure noise as sticky as real monthly weather
-              (φ = 0.5), the usual Mann-Kendall test calls 21% of the map a trend. The pre-whitened test
-              (Kulkarni &amp; von Storch 1995) calls 0% after false-discovery control, and about 5% before it,
-              which is what a 5% test should do.
+              We make fake Earth data where the truth is known (the lab above). On 45 years of pure noise as sticky as
+              real monthly weather (φ = 0.5), the usual Mann-Kendall test flags 22% of places (15–30% across 10 maps).
+              Removing the stickiness first (pre-whitening, Kulkarni &amp; von Storch 1995) brings that to 3%, and
+              false-discovery control to 0%.
             </p>
             <p>
-              Plant a real trend in half the map and the honest test still finds all of it while staying near 5%
-              on the empty half, up to φ = 0.7. Stickier data needs a longer record, and the site says so.
-              The 95% range on each rate contained the true value 95% of the time in 300 simulated series.
+              Plant a real trend in half the map and all three methods find all of it up to φ = 0.7. The honest test
+              then also flags about 7% of the empty half, so roughly 1 in 15 of its flags is wrong: inside the 10% false
+              discovery rate it promises. The 95% range on a rate held the true rate 93–98% of the time, with or
+              without 30% of months missing.
             </p>
             <p>
-              Data: NASA POWER (MERRA-2) monthly values, 1981–2025. Maps test thousands of places at once, so
-              we control the false discovery rate at 10% (Benjamini-Hochberg; Wilks 2016). Region clusters must
-              beat 199 time-shuffles. Full numbers are in docs/validation.md.
+              Data: NASA POWER (MERRA-2) monthly values, 1981–2025. The atlas samples one point every 5°; maps test
+              thousands of places at once, so we control the false discovery rate at 10% (Benjamini-Hochberg; Wilks
+              2016). Region clusters must beat the largest patch on 199 time-shuffled maps of all five variables.
+              Full numbers are in docs/validation.md.
             </p>
           </div>
           <p className="credit">Team Astronomy of the Arcane · NASA Space Apps Challenge 2026 · Be An Earth System Trend Detective!</p>

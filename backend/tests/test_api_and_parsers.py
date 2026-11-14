@@ -139,3 +139,11 @@ def test_empty_months_are_kept_as_none_not_dropped():
     assert months == ["2020-11", "2020-12", "2021-01", "2021-02"]  # crosses a year end
     assert values == [2.0, None, None, 5.0]
     assert monthly_from_daily([]) == ([], [])
+
+
+def test_every_globe_variable_can_be_opened_as_a_point():
+    # Regression: clicking a soil-wetness or wind square on the globe opened a different variable,
+    # because the point API only knew temperature, rain, humidity and sunlight.
+    from trendlab.scan import SCAN_VARS
+    ids = {p["id"] for p in client.get("/api/params").json()}
+    assert set(SCAN_VARS) <= ids

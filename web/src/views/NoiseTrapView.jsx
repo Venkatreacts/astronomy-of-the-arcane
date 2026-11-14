@@ -1,76 +1,114 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MaskMap from '../components/MaskMap'
 import { api } from '../api'
 
-const pct = (x) => `${(x * 100).toFixed(1)}%`
+const METHODS = [
+  { id: 'naive', label: 'Usual test', tone: 'u', color: '#d55e00', how: 'Mann-Kendall, p < 0.05' },
+  { id: 'pw', label: 'Stickiness removed', tone: 'pw', color: '#56b4e9', how: 'pre-whitened Mann-Kendall, p < 0.05' },
+  { id: 'fdr', label: 'Honest test', tone: 'h', color: '#0072b2', how: 'pre-whitened, false discovery rate 10% over the map' },
+]
+const CONTROLS = [
+  { key: 'phi', label: 'Stickiness φ', fmt: (v) => v.toFixed(1) },
+  { key: 'years', label: 'Record length', fmt: (v) => `${v} yr` },
+  { key: 'trend', label: 'Real trend (left half)', fmt: (v) => (v ? `${v} SD/decade` : 'none') },
+  { key: 'spatial', label: 'Neighbours', fmt: (v) => (v ? 'correlated' : 'independent') },
+  { key: 'missing', label: 'Months missing', fmt: (v) => (v ? `${v * 100}%` : 'none') },
+]
+const pc = (x) => (x == null ? '–' : `${(x * 100).toFixed(0)}%`)
+const range = (s) => (s ? `${pc(s.lo)}–${pc(s.hi)}` : '')
+
+function toGrid(str, n) {
+  return Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => Number(str[i * n + j])))
+}
 
 export default function NoiseTrapView() {
-  const [phi, setPhi] = useState(0.5)
-  const [trend, setTrend] = useState(0)
-  const [result, setResult] = useState(null)
+  const [lab, setLab] = useState(null)
+  const [set, setSet] = useState({ phi: 0.5, years: 45, trend: 0, spatial: 2, missing: 0 })
   const [error, setError] = useState('')
 
-  // Pre-built maps load in milliseconds, so the plate always shows the current setting.
-  useEffect(() => {
-    api.noiseTrap({ phi, trend }).then(setResult).catch((e) => setError(e.message))
-  }, [phi, trend])
+  useEffect(() => { api.lab().then(setLab).catch((e) => setError(e.message)) }, [])
 
-  const withTrend = result?.params?.trend_sd_per_decade > 0
+  const exp = useMemo(() => lab?.experiments.find((e) => CONTROLS.every((c) => e.params[c.key] === set[c.key])), [lab, set])
+  const n = lab?.size[0] ?? 20
+  const withTrend = set.trend > 0
+  const m = exp?.methods
+
+  const rows = [
+    { key: 'false_alarm', label: withTrend ? 'Trend-free places wrongly flagged' : 'Places wrongly flagged', good: 'low', show: true },
+    { key: 'power', label: 'Real trends found', good: 'high', show: withTrend },
+    { key: 'miss', label: 'Real trends missed', good: 'low', show: withTrend },
+    { key: 'fdp', label: 'Flags that are wrong', good: 'low', show: withTrend },
+    { key: 'any_false', label: 'Maps with at least one false alarm', good: 'low', show: true },
+  ].filter((r) => r.show)
 
   return (
     <div className="trap">
       <h2>The trap: trends in pure noise</h2>
       <p className="lead">
-        Here is 25 years of fake monthly data for 400 places, with <strong>no trend anywhere</strong>. Each month
-        is made to resemble the month before, the way real weather does. Every square the usual test lights up
-        is a false alarm.
+        A laboratory with fake data, so the truth is known. Each map is {n * n} places of monthly noise in which each month
+        resembles the last by φ, the way real weather does. {withTrend
+          ? <>The <strong>left half</strong> also gets a real, steady trend; the right half has none.</>
+          : <>There is <strong>no trend anywhere</strong>: every flagged square is a false alarm.</>}
       </p>
-      <div className="controls">
-        <label className="slider">
-          <span>How much each month resembles the last: φ = {phi.toFixed(1)}</span>
-          <input type="range" min="0" max="0.9" step="0.1" value={phi}
-            onChange={(e) => setPhi(Number(e.target.value))} />
-        </label>
-        <div className="switch" role="group" aria-label="What the fake data contains">
-          <button className={trend === 0 ? 'on' : ''} aria-pressed={trend === 0} onClick={() => setTrend(0)}>Pure noise</button>
-          <button className={trend > 0 ? 'on' : ''} aria-pressed={trend > 0} onClick={() => setTrend(0.8)}>Add a real trend on the left</button>
-        </div>
+      <div className="lab-controls">
+        {lab && CONTROLS.map((c) => (
+          <div key={c.key} className="lab-control" role="group" aria-label={c.label}>
+            <span className="lab-label">{c.label}</span>
+            <div className="seg">
+              {lab.grid[c.key].map((v) => (
+                <button key={v} className={set[c.key] === v ? 'on' : ''} aria-pressed={set[c.key] === v}
+                  onClick={() => setSet((cur) => ({ ...cur, [c.key]: v }))}>{c.fmt(v)}</button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      {result && (
-        <div className="pair">
-          <figure>
-            <MaskMap mask={result.naive_mask} color="#d55e00" splitHalf={withTrend} />
-            <figcaption>
-              <b className="u">Usual test</b>
-              {withTrend
-                ? <> finds {pct(result.naive_left_fraction)} of the real trend, and also flags {pct(result.naive_right_fraction)} of the empty half.</>
-                : <> calls <strong className="u">{pct(result.naive_fraction)}</strong> of the map a trend. All of it is fake.</>}
-            </figcaption>
-          </figure>
-          <figure>
-            <MaskMap mask={result.honest_mask} color="#0072b2" splitHalf={withTrend} />
-            <figcaption>
-              <b className="h">Honest test</b>
-              {withTrend
-                ? <> finds {pct(result.honest_left_fraction)} of the real trend and flags {pct(result.honest_right_fraction)} of the empty half.</>
-                : <> calls <strong className="h">{pct(result.honest_fraction)}</strong> a trend, after removing the stickiness and correcting for 400 tests at once.</>}
-            </figcaption>
-          </figure>
-        </div>
-      )}
-      {withTrend && result.honest_left_fraction < 0.8 && (
-        <p className="callout" role="note">
-          At φ = {result.params.phi.toFixed(1)} the honest test finds only {pct(result.honest_left_fraction)} of the real trend.
-          Data this sticky carries less independent information, so any honest test needs a longer record to be sure.
-          The usual test only looks better because it also flags {pct(result.naive_right_fraction)} of the empty half.
-        </p>
-      )}
-      {withTrend && (
-        <p className="small">
-          The planted trend is 0.8 noise-widths per decade. Weaker trends need more years: in 25 years the honest test
-          finds about 42% of a 0.4 trend and almost none of a 0.2 trend. That is the price of not being fooled.
-        </p>
+      {exp && (
+        <>
+          <div className="pair three">
+            {METHODS.map((k) => (
+              <figure key={k.id}>
+                <MaskMap mask={toGrid(m[k.id].example, n)} color={k.color} splitHalf={withTrend} />
+                <figcaption>
+                  <b className={k.tone}>{k.label}</b>{' '}
+                  {withTrend
+                    ? <>finds <strong className={k.tone}>{pc(m[k.id].power?.mean)}</strong> of the real trend; flags {pc(m[k.id].false_alarm.mean)} of the empty half.</>
+                    : <>flags <strong className={k.tone}>{pc(m[k.id].false_alarm.mean)}</strong> of places. All of it is fake.</>}
+                  <span className="how">{k.how}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <table className="labtable">
+            <caption>Average over {exp.params.reps} independent maps (seeds {exp.params.seeds[0]}–{exp.params.seeds[1]}), with the 95% range across maps</caption>
+            <thead>
+              <tr><th scope="col">Measure</th>{METHODS.map((k) => <th scope="col" key={k.id} className={k.tone}>{k.label}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <th scope="row">{r.label}<span>{r.good} is better</span></th>
+                  {METHODS.map((k) => {
+                    const s = m[k.id][r.key]
+                    return <td key={k.id}><strong>{pc(s?.mean)}</strong> <span>{range(s)}</span></td>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {withTrend && m.fdr.power && m.fdr.power.mean < 0.8 && (
+            <p className="callout" role="note">
+              Here the honest test finds only {pc(m.fdr.power.mean)} of a real trend. Sticky, short or gappy data carries
+              less independent information, so an honest test needs a longer record. The usual test only looks better
+              because it also flags {pc(m.naive.false_alarm.mean)} of the trend-free half.
+            </p>
+          )}
+          <p className="small">
+            Synthetic AR(1) noise, not NASA data. The map shown is the first of the {exp.params.reps}. Rebuild or check any
+            number with backend/scripts/build_lab.py.
+          </p>
+        </>
       )}
     </div>
   )

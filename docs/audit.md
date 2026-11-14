@@ -122,7 +122,7 @@ Audited `main` at `111ed0a` (everything since `fac7026`) and tested `feat/redesi
 | 8 | Noise Trap note quoted the slider's phi, not the map's | Fixed. |
 | 9 | Scan preset buttons stayed active during a scan | Already fixed in the redesign. |
 | 10 | "189 remain" read as a subset when it is not | Fixed: "pass the false-discovery check", in the page and in every saved scan. |
-| 11 | No tests on the scan and Detective routes | Fixed: 11 new tests (passcode, Gemini loop, preset snapping, scan route, connector). |
+| 11 | No tests on the scan and Detective routes | Fixed: 11 new tests (passcode, Gemini loop, preset snapping, scan route). |
 | 12 | Leftover endpoints and a helper copied three times | Left as is; nothing breaks. |
 | 13 | Southern and western places printed as "-27.5N, -57.5E" | Fixed. |
 

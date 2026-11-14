@@ -22,6 +22,10 @@ PARAMS = {
              "How much water vapour the air holds, as a percent of the most it could hold."),
     "ALLSKY_SFC_SW_DWN": ("Sunlight reaching the surface", "kWh/m2/day",
                           "Solar energy arriving at the ground in a day, with clouds counted."),
+    # the globe's other two variables, so a globe square always opens the same variable here
+    "GWETROOT": ("Root-zone soil wetness", "index (0-1)",
+                 "How wet the soil is where roots reach: 0 is completely dry, 1 is saturated."),
+    "WS2M": ("Wind speed at 2 m", "m/s", "Average wind speed near the ground."),
 }
 
 

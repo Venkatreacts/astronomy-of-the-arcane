@@ -6,7 +6,6 @@ Docs: http://localhost:8000/docs
 
 from __future__ import annotations
 
-import contextlib
 import json
 import math
 import os
@@ -30,16 +29,8 @@ CASES = BACKEND / "data" / "cases"
 
 from api.scan_routes import router as scan_router  # noqa: E402
 from api.agent_routes import router as agent_router  # noqa: E402
-from api.mcp_server import http_app as mcp_app, mcp  # noqa: E402
 
-
-@contextlib.asynccontextmanager
-async def lifespan(_app):
-    async with mcp.session_manager.run():  # a mounted app's own startup does not run, so start MCP here
-        yield
-
-
-app = FastAPI(title="Noise Trap API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Noise Trap API", version="0.1.0")
 # Browsers may call the API only from our own web app. ALLOWED_ORIGINS is a comma-separated list (the Vercel URL).
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
@@ -71,7 +62,7 @@ def health():
 
 @app.get("/api/params")
 def params():
-    # A plain one-line definition is the optional third entry of each PARAMS item (added by the data session).
+    # The third entry of each PARAMS item is a one-line plain definition (older two-entry items still work).
     return [{"id": k, "name": v[0], "units": v[1], "definition": v[2] if len(v) > 2 else None}
             for k, v in PARAMS.items()]
 
@@ -129,5 +120,3 @@ def noise(phi: float = Query(0.5, ge=0.0, le=0.9), trend: float = Query(0.0)):
         raise HTTPException(404, "Noise maps not built yet: run python scripts/build_static.py")
     return json.loads(path.read_text(encoding="utf-8"))
 
-
-app.mount("/", mcp_app)  # serves /mcp; mounted last so every /api route above wins

@@ -23,8 +23,14 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 NOT_SET_UP = "The live AI Detective is not set up on this server. The saved answers still work."
 
 
+class Turn(BaseModel):
+    question: str = Field(..., max_length=500)
+    answer: str = Field(..., max_length=6000)
+
+
 class Question(BaseModel):
     question: str = Field(..., min_length=5, max_length=500)
+    history: list[Turn] = Field(default_factory=list, max_length=4)  # earlier turns, for follow-up questions
 
 
 @router.post("")
@@ -37,7 +43,7 @@ def detective(q: Question, x_demo_passcode: str = Header("")):
 
     if os.environ.get("GEMINI_API_KEY"):
         try:
-            return ask_gemini(q.question)
+            return ask_gemini(q.question, history=[t.model_dump() for t in q.history])
         except requests.HTTPError as exc:
             code = exc.response.status_code
             if code == 429:
@@ -53,7 +59,7 @@ def detective(q: Question, x_demo_passcode: str = Header("")):
     import anthropic
 
     try:
-        return ask(q.question)
+        return ask(q.question, history=[t.model_dump() for t in q.history])
     except TypeError as exc:  # the SDK raises TypeError when no credential is configured at all
         if "authentication" in str(exc).lower():
             raise HTTPException(503, NOT_SET_UP) from exc

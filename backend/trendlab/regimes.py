@@ -97,9 +97,11 @@ def _where(lat: float, lon: float) -> str:
 def findings(scan: dict, regimes: dict, compounds: list[dict]) -> list[str]:
     """Plain-language findings, strongest first. Every number comes from the scan."""
     s = scan["summary"]
-    out = [f"{s['n_tests']} trend tests run. The usual method would report {s['naive_hits']} 'significant' pixels; "
-           f"with autocorrelation removed, {s['fdr_hits']} pass the false-discovery check (10% rate), "
-           f"and {s['significant_clusters']} cluster(s) pass the permutation test."]
+    out = [f"{s['n_tests']} trend tests run. The usual test reports {s['naive_hits']} pixels at p < 0.05; "
+           f"after removing month-to-month stickiness, {s.get('prewhitened_hits', '?')} remain at p < 0.05, and "
+           f"{s['fdr_hits']} pass false-discovery control (10% across every test in this box). "
+           f"Separately, {s['significant_clusters']} cluster(s) are larger than the largest cluster on 95% of "
+           f"time-shuffled maps of all variables."]
     clusters = []
     for v, info in scan["variables"].items():
         for c in info["clusters"]:
@@ -107,7 +109,8 @@ def findings(scan: dict, regimes: dict, compounds: list[dict]) -> list[str]:
                 word = info["word_up"] if c["direction"] == "rising" else info["word_down"]
                 clusters.append((c["mass"], f"{info['name']}: {word} across {c['size']} pixels around "
                                  f"{_where(c['center_lat'], c['center_lon'])} "
-                                 f"({c['mean_rate_per_decade']:+.3g} {info['units']} per decade, cluster p = {c['p']:.3f})."))
+                                 f"({c['mean_rate_per_decade']:+.3g} {info['units']} per decade, "
+                                 f"cluster shuffle test p = {c['p']:.3f})."))
     out += [t for _, t in sorted(clusters, key=lambda t: -t[0])]
     out += [f"Compound pattern: {c['text']} near {_where(c['center_lat'], c['center_lon'])}." for c in compounds[:3]]
     if regimes["k"]:

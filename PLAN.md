@@ -101,7 +101,7 @@ Project page order (same as the 2025 winners): Summary, Demo link, Project link,
 - Prepare an answer: the app says Chennai air temperature (NASA POWER, 1981-2025) is +0.065 degC per decade, plain test p = 0.003, ours p = 0.054, "about 17 more years". A judge will ask "so Chennai is not warming?". Our answer is "the data cannot yet rule out noise at 5%", not "there is no warming".
 
 ## 6. Deploy (Render + Vercel)
-- **API on Render** (`render.yaml`): live "Your place" tests, new region boxes, live Detective questions and the Claude connector at `/mcp`. Free plan: it sleeps when idle and takes about a minute to wake. Open the site once before the pitch.
+- **API on Render** (`render.yaml`): live "Your place" tests, new region boxes, and live Detective questions. Free plan: it sleeps when idle and takes about a minute to wake. Open the site once before the pitch.
 - **Web app on Vercel**: static files built from `web/`, with `VITE_API_URL` pointing at Render.
 - The globe, the Noise Trap, case files, the nine listed region scans and the saved Detective answers are pre-computed JSON served as static files, so the demo never waits on the server and works with no Wi-Fi.
 - AI Detective: Gemini for now, fed with `docs/detective-notes.md` and our saved results. Saved answers are open to everyone; a live question needs the team passcode. Keys and the passcode live only in the Render dashboard.
