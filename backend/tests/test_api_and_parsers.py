@@ -130,3 +130,20 @@ def test_point_returns_the_confidence_interval(monkeypatch):
     for method in ("naive", "honest"):
         lo, hi = r.json()["analysis"][method]["slope_ci_per_year"]
         assert lo < r.json()["analysis"][method]["slope_per_year"] < hi
+
+
+def test_empty_months_are_kept_as_none_not_dropped():
+    from build_cases import monthly_from_daily
+    rows = [("2020-11-03", 1.0), ("2020-11-20", 3.0), ("2021-02-10", 5.0), ("2021-02-11", float("nan"))]
+    months, values = monthly_from_daily(rows)
+    assert months == ["2020-11", "2020-12", "2021-01", "2021-02"]  # crosses a year end
+    assert values == [2.0, None, None, 5.0]
+    assert monthly_from_daily([]) == ([], [])
+
+
+def test_every_globe_variable_can_be_opened_as_a_point():
+    # Regression: clicking a soil-wetness or wind square on the globe opened a different variable,
+    # because the point API only knew temperature, rain, humidity and sunlight.
+    from trendlab.scan import SCAN_VARS
+    ids = {p["id"] for p in client.get("/api/params").json()}
+    assert set(SCAN_VARS) <= ids

@@ -1,55 +1,50 @@
-// Side-by-side verdicts: plain Mann-Kendall vs the Noise Trap (pre-whitened) test.
+// The three stages for one place, in the same order and with the same labels as every other view.
+// One place is one test, so the honest verdict follows the single-place rule (stage 2).
+import { baseMean, fmt, howMuch, peq, rate } from '../lib/format'
+import { RULE, STAGE } from '../lib/stages'
 
-// 3 significant figures; scientific notation for very large or tiny numbers (e.g. NO2 in molecules/cm2).
-function fmt(x, signed = false) {
-  const a = Math.abs(x)
-  const s = a !== 0 && (a >= 1e4 || a < 1e-3) ? x.toExponential(2) : Number(x.toPrecision(3)).toString()
-  return signed && x > 0 ? `+${s}` : s
-}
-
-function Card({ label, result, units, tone }) {
-  const verdict = result.significant
-    ? `Significant: ${result.direction}`
-    : 'No clear trend yet'
-  const ci = result.slope_ci_per_year
+export function Stages({ naive, pw }) {
   return (
-    <div className={`card verdict ${tone}`}>
-      <div className="card-label">{label}</div>
-      <div className="card-big">{verdict}</div>
-      <div className="card-small">
-        Rate {fmt(result.slope_per_year * 10, true)} {units} per decade
-        {ci && ` (95% range ${fmt(ci[0] * 10, true)} to ${fmt(ci[1] * 10, true)})`} · p = {result.p.toFixed(3)}
+    <dl className="verdicts three">
+      <div className="vrow u">
+        <dt>1 · {STAGE.usual}</dt>
+        <dd><span className="vword">{naive.significant ? 'Trend' : 'No trend'}</span>
+          <span className="small">Mann-Kendall on the anomalies · {peq(naive.p)}</span></dd>
       </div>
-    </div>
+      <div className="vrow pw">
+        <dt>2 · {STAGE.pw}</dt>
+        <dd><span className="vword">{pw.significant ? 'Trend' : 'No trend'}</span>
+          <span className="small">same test after pre-whitening · {peq(pw.p)}</span></dd>
+      </div>
+      <div className="vrow h">
+        <dt>3 · {STAGE.honest}</dt>
+        <dd><span className="vword">{pw.significant ? 'Trend is real' : 'Not proven'}</span>
+          <span className="small rule">{RULE.place}</span></dd>
+      </div>
+    </dl>
   )
 }
 
-export default function Verdict({ analysis, units }) {
-  const { naive, honest, years_more_needed: more, record_years: rec, noise } = analysis
-  const disagree = naive.significant !== honest.significant
+// A case-file series: the stages, the size of the change in human terms, and how long until we know.
+export default function Verdict({ series }) {
+  const { analysis: a, units, dates, values } = series
+  const { naive, honest: pw, years_more_needed: more, record_years: rec, noise } = a
+  const ci = pw.slope_ci_per_year
   return (
-    <div className="verdicts">
-      <Card label="Usual method (plain Mann-Kendall)" result={naive} units={units} tone="naive" />
-      <Card label="Noise Trap (autocorrelation removed)" result={honest} units={units} tone="honest" />
-      <div className="card verdict info">
-        <div className="card-label">When will we know?</div>
-        {honest.significant ? (
-          <div className="card-big">Already detectable</div>
-        ) : more == null ? (
-          <div className="card-big">No measurable trend</div>
-        ) : (
-          <div className="card-big">≈ {Math.ceil(more)} more years</div>
-        )}
-        <div className="card-small">
-          {rec.toFixed(0)} years of data so far · month-to-month "stickiness" φ = {noise.phi.toFixed(2)}
-        </div>
-      </div>
-      {disagree && (
+    <>
+      <Stages naive={naive} pw={pw} />
+      <p className="small">
+        Rate {howMuch(pw.slope_per_year * 10, units, dates[0], dates[dates.length - 1], baseMean(dates, values))}
+        {ci && ` (95% range ${rate(ci[0] * 10)} to ${rate(ci[1] * 10)} per decade, Sen's slope)`}.{' '}
+        {pw.significant ? 'Already detectable.' : more == null ? 'No measurable trend.' : `About ${Math.ceil(more)} more years of data needed.`}{' '}
+        {rec.toFixed(0)} years so far; each month resembles the last by φ = {fmt(noise.phi, false, 2)}.
+      </p>
+      {naive.significant !== pw.significant && (
         <p className="callout" role="note">
-          The two methods disagree. This series is "sticky" (each month resembles the last), which makes
-          the usual test see a trend too easily. Treat the usual verdict with caution.
+          The tests disagree. This series is sticky (each month resembles the last), which makes the usual
+          test see a trend too easily. Do not trust the usual verdict here.
         </p>
       )}
-    </div>
+    </>
   )
 }

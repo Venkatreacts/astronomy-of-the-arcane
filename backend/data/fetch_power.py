@@ -13,11 +13,19 @@ import requests
 POWER_URL = "https://power.larc.nasa.gov/api/temporal/monthly/point"
 
 PARAMS = {
-    "T2M": ("Air temperature at 2 m", "degC"),
-    "T2M_MAX": ("Daily maximum air temperature at 2 m", "degC"),
-    "PRECTOTCORR": ("Precipitation", "mm/day"),
-    "RH2M": ("Relative humidity at 2 m", "%"),
-    "ALLSKY_SFC_SW_DWN": ("Sunlight reaching the surface", "kWh/m2/day"),
+    # id: (name, units, one-line plain definition shown under the variable picker)
+    "T2M": ("Air temperature at 2 m", "degC", "How warm the air is near the ground, averaged over the month."),
+    "T2M_MAX": ("Daily maximum air temperature at 2 m", "degC",
+                "The hottest reading of each day, averaged over the month."),
+    "PRECTOTCORR": ("Precipitation", "mm/day", "Rain and snow, as the depth of water that falls in a day."),
+    "RH2M": ("Relative humidity at 2 m", "%",
+             "How much water vapour the air holds, as a percent of the most it could hold."),
+    "ALLSKY_SFC_SW_DWN": ("Sunlight reaching the surface", "kWh/m2/day",
+                          "Solar energy arriving at the ground in a day, with clouds counted."),
+    # the globe's other two variables, so a globe square always opens the same variable here
+    "GWETROOT": ("Root-zone soil wetness", "index (0-1)",
+                 "How wet the soil is where roots reach: 0 is completely dry, 1 is saturated."),
+    "WS2M": ("Wind speed at 2 m", "m/s", "Average wind speed near the ground."),
 }
 
 
@@ -39,7 +47,7 @@ def get_monthly_point(lat: float, lon: float, param: str = "T2M", start: int = 1
         v = raw[key]
         dates.append(f"{year}-{month}")
         values.append(None if v is None or v <= -998 else float(v))
-    name, units = PARAMS[param]
+    name, units = PARAMS[param][:2]
     return {
         "name": name,
         "units": units,

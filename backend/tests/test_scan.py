@@ -25,7 +25,7 @@ def test_vectorized_test_matches_pymannkendall_prewhitening():
     cube[:, 0] += 0.004 * np.arange(300)  # one series with a trend
     p_ours = 2 * norm.sf(np.abs(mk_z(prewhiten(cube))))
     p_ref = np.array([mk.pre_whitening_modification_test(cube[:, i]).p for i in range(cube.shape[1])])
-    assert np.allclose(p_ours, p_ref, atol=0.01)
+    assert np.allclose(p_ours, p_ref, atol=1e-10)  # tie-corrected core: identical, not just close
     assert rng is not None
 
 
@@ -94,3 +94,50 @@ def test_regimes_and_findings_on_two_part_map():
     assert comps and comps[0]["overlap_pixels"] >= 3
     text = findings(scan, reg, comps)
     assert "trend tests run" in text[0] and any("Compound pattern" in t for t in text)
+
+
+def test_untestable_pixels_are_missing_not_no_trend():
+    # Regression: pixels with too many gaps used to be zero-filled and drawn as z = 0 ("no trend").
+    cube = ar1_noise_cube(240, 4, 4, phi=0.3, seed=2)
+    cube[:, 0, 0] = np.nan                 # ocean pixel for soil wetness
+    cube[::3, 1, 1] = np.nan               # a third of the months missing
+    cube[:, 2, 2] = 0.7                    # constant (pinned value)
+    res = scan_cubes(as_data({"GWETROOT": cube}), n_perm=19)
+    v = res["variables"]["GWETROOT"]
+    for a, b in [(0, 0), (1, 1), (2, 2)]:
+        assert not v["valid"][a, b]
+        assert np.isnan(v["z"][a, b]) and np.isnan(v["rate_per_decade"][a, b])
+    assert res["summary"]["n_tests"] == 13
+
+
+def test_short_gaps_are_skipped_not_filled():
+    cube = ar1_noise_cube(240, 3, 3, phi=0.3, seed=4)
+    cube += (1.0 / 120.0) * np.arange(240)[:, None, None]  # 1 SD per decade
+    cube[100:115, 1, 1] = np.nan           # 6% missing: still tested
+    res = scan_cubes(as_data({"T2M": cube}), n_perm=19)
+    v = res["variables"]["T2M"]
+    assert v["valid"][1, 1] and v["coverage"][1, 1] == pytest.approx(225 / 240)
+    assert v["rate_per_decade"][1, 1] == pytest.approx(1.0, abs=0.35)
+    assert v["naive_mask"][1, 1]
+
+
+def test_cluster_test_controls_errors_across_all_variables():
+    # Five unrelated noise maps: a per-variable test would flag at least one about 23% of the time.
+    # Comparing with the largest cluster over all five keeps it near 5%.
+    hits = 0
+    for rep in range(16):
+        cubes = {v: ar1_noise_cube(120, 8, 8, phi=0.3, spatial_sigma=1.2, seed=1000 + 10 * rep + k)
+                 for k, v in enumerate(["T2M", "PRECTOTCORR", "GWETROOT", "RH2M", "WS2M"])}
+        res = scan_cubes(as_data(cubes), n_perm=39, seed=rep)
+        hits += res["summary"]["significant_clusters"] > 0
+    assert hits <= 3
+
+
+def test_three_stages_are_reported_at_one_level():
+    cube = ar1_noise_cube(240, 6, 6, phi=0.6, spatial_sigma=1.0, seed=8)
+    res = scan_cubes(as_data({"T2M": cube}), n_perm=19)
+    s, v = res["summary"], res["variables"]["T2M"]
+    assert s["alpha"] == 0.05 and s["fdr_q"] == 0.10
+    assert s["naive_hits"] == int(v["naive_mask"].sum())
+    assert s["prewhitened_hits"] == int(v["prewhitened_mask"].sum())
+    assert s["fdr_hits"] == int(v["fdr_mask"].sum())

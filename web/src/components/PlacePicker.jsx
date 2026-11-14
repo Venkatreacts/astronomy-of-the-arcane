@@ -25,14 +25,14 @@ export default function PlacePicker({ lat, lon, onPick }) {
         { type: 'scattergeo', mode: 'markers', lat: grid.lat, lon: grid.lon,
           marker: { size: 7, color: 'rgba(0,0,0,0)' }, hovertemplate: '%{lat:.1f}, %{lon:.1f}<extra>click to pick</extra>' },
         { type: 'scattergeo', mode: 'markers', lat: [lat], lon: [lon], hoverinfo: 'skip',
-          marker: { size: 12, color: '#d55e00', line: { width: 2, color: '#ffffff' } } },
+          marker: { size: 12, color: '#e9eef2', line: { width: 2, color: '#05070a' } } },
       ]}
       layout={{
-        height: 300, margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: false,
+        height: Math.round(Math.min(360, window.innerWidth * 0.55)), margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: false,
         paper_bgcolor: 'rgba(0,0,0,0)',
-        geo: { projection: { type: 'natural earth' }, showland: true, landcolor: 'rgba(127,127,127,0.35)',
-          showocean: true, oceancolor: 'rgba(0,114,178,0.12)', showcountries: true,
-          countrycolor: 'rgba(127,127,127,0.6)', coastlinecolor: 'rgba(127,127,127,0.8)',
+        geo: { projection: { type: 'natural earth' }, showland: true, landcolor: '#141d26',
+          showocean: true, oceancolor: '#070b10', showcountries: true, showframe: false,
+          countrycolor: '#233140', coastlinecolor: '#2b3947',
           bgcolor: 'rgba(0,0,0,0)', lataxis: { range: [-60, 80] } },
       }}
       config={{ displayModeBar: false, responsive: true }}

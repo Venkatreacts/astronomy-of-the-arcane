@@ -21,6 +21,12 @@ PRESETS = [
     {"id": "tamilnadu", "name": "Tamil Nadu & Cauvery delta", "bbox": [9.5, 13.5, 77.0, 81.0]},
     {"id": "punjab", "name": "Punjab-Haryana farm belt", "bbox": [28.5, 32.5, 73.5, 77.5]},
     {"id": "westernghats", "name": "Kerala & Western Ghats", "bbox": [8.5, 12.5, 74.5, 78.5]},
+    {"id": "amazon", "name": "Amazon deforestation arc, Brazil", "bbox": [-12.0, -8.0, -64.0, -60.0]},
+    {"id": "sahel", "name": "Sahel, Niger-Nigeria", "bbox": [12.0, 16.0, 2.0, 6.0]},
+    {"id": "cornbelt", "name": "US Corn Belt, Iowa", "bbox": [40.0, 44.0, -96.0, -92.0]},
+    {"id": "murraydarling", "name": "Murray-Darling basin, Australia", "bbox": [-36.0, -32.0, 142.0, 146.0]},
+    {"id": "iberia", "name": "Central Spain", "bbox": [38.0, 42.0, -6.0, -2.0]},
+    {"id": "siberia", "name": "Yakutia, Siberia", "bbox": [60.0, 64.0, 126.0, 130.0]},
 ]
 
 CAVEATS = [
@@ -44,6 +50,18 @@ def _clean(o):
     if isinstance(o, (float, np.floating)):
         return None if not math.isfinite(float(o)) else float(o)
     return o
+
+
+def snap_to_preset(bbox) -> dict | None:
+    """The preset whose box overlaps `bbox` (lat_min, lat_max, lon_min, lon_max) the most, or None."""
+    a0, a1, o0, o1 = bbox
+    best, area = None, 0.0
+    for p in PRESETS:
+        b0, b1, q0, q1 = p["bbox"]
+        overlap = max(0.0, min(a1, b1) - max(a0, b0)) * max(0.0, min(o1, q1) - max(o0, q0))
+        if overlap > area:
+            best, area = p, overlap
+    return best
 
 
 def run_scan(bbox, perms: int = 199) -> dict:
@@ -73,10 +91,9 @@ def presets():
 
 @router.get("")
 def scan(lat_min: float = Query(..., ge=-90, le=90), lat_max: float = Query(..., ge=-90, le=90),
-         lon_min: float = Query(..., ge=-180, le=180), lon_max: float = Query(..., ge=-180, le=180),
-         perms: int = Query(199, ge=19, le=499)):
+         lon_min: float = Query(..., ge=-180, le=180), lon_max: float = Query(..., ge=-180, le=180)):
     try:
-        return run_scan((lat_min, lat_max, lon_min, lon_max), perms)
+        return run_scan((lat_min, lat_max, lon_min, lon_max))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:  # NASA POWER outages, timeouts

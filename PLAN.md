@@ -100,8 +100,9 @@ Project page order (same as the 2025 winners): Summary, Demo link, Project link,
 - What honesty costs (our own run, 20 x 20 map, 25 years, phi 0.5, one seed, trend added to half the map): ours finds 0% of a 0.2 SD/decade trend, 42% at 0.4, 100% at 0.8 (with 5% of the trend-free half flagged at 0.8, 0% otherwise). The plain test finds 49% / 94% / 100% but flags 25% of the trend-free half every time. Say this before a judge asks.
 - Prepare an answer: the app says Chennai air temperature (NASA POWER, 1981-2025) is +0.065 degC per decade, plain test p = 0.003, ours p = 0.054, "about 17 more years". A judge will ask "so Chennai is not warming?". Our answer is "the data cannot yet rule out noise at 5%", not "there is no warming".
 
-## 6. Deploy (Vercel)
-- One Vercel project from the repo root. The web app is static files built from `web/`.
-- Case files and the Noise Trap maps are pre-computed JSON served as static files, so the demo does not wait on a server and still works if the API is cold.
-- Only "Investigate a place" needs live Python (`/api/point`): one Vercel Python function with a small requirements list (numpy, scipy, pymannkendall, fastapi, requests). The data-download libraries stay out of it, because Vercel limits how big a function can be.
-- Preview deploy on every push to check; production deploy only from `main` after the feature freeze checks pass.
+## 6. Deploy (Render + Vercel)
+- **API on Render** (`render.yaml`): live "Your place" tests, new region boxes, and live Detective questions. Free plan: it sleeps when idle and takes about a minute to wake. Open the site once before the pitch.
+- **Web app on Vercel**: static files built from `web/`, with `VITE_API_URL` pointing at Render.
+- The globe, the Noise Trap, case files, the nine listed region scans and the saved Detective answers are pre-computed JSON served as static files, so the demo never waits on the server and works with no Wi-Fi.
+- AI Detective: Gemini for now, fed with `docs/detective-notes.md` and our saved results. Saved answers are open to everyone; a live question needs the team passcode. Keys and the passcode live only in the Render dashboard.
+- Preview deploy to check; production deploy only from `main` after the feature freeze checks pass.
