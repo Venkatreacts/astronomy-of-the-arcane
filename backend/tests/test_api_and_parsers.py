@@ -130,3 +130,12 @@ def test_point_returns_the_confidence_interval(monkeypatch):
     for method in ("naive", "honest"):
         lo, hi = r.json()["analysis"][method]["slope_ci_per_year"]
         assert lo < r.json()["analysis"][method]["slope_per_year"] < hi
+
+
+def test_empty_months_are_kept_as_none_not_dropped():
+    from build_cases import monthly_from_daily
+    rows = [("2020-11-03", 1.0), ("2020-11-20", 3.0), ("2021-02-10", 5.0), ("2021-02-11", float("nan"))]
+    months, values = monthly_from_daily(rows)
+    assert months == ["2020-11", "2020-12", "2021-01", "2021-02"]  # crosses a year end
+    assert values == [2.0, None, None, 5.0]
+    assert monthly_from_daily([]) == ([], [])

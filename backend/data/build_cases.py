@@ -51,14 +51,24 @@ def series_with_analysis(series: dict) -> dict:
 
 
 def monthly_from_daily(rows: list[tuple[str, float]]) -> tuple[list[str], list[float | None]]:
-    """Average daily values (YYYY-MM-DD, value) into calendar months."""
+    """Average daily values (YYYY-MM-DD, value) into calendar months.
+
+    Every month from the first to the last is returned; a month with no data is None, never dropped,
+    because the trend engine needs each value at its real position in time (audit #1).
+    """
     buckets: dict[str, list[float]] = {}
     for day, v in rows:
         if v is None or not np.isfinite(v):
             continue
         buckets.setdefault(day[:7], []).append(v)
-    months = sorted(buckets)
-    return months, [float(np.mean(buckets[m])) for m in months]
+    if not buckets:
+        return [], []
+    (y, m), last = map(int, min(buckets).split("-")), max(buckets)
+    months = []
+    while f"{y}-{m:02d}" <= last:
+        months.append(f"{y}-{m:02d}")
+        y, m = (y, m + 1) if m < 12 else (y + 1, 1)
+    return months, [float(np.mean(buckets[k])) if k in buckets else None for k in months]
 
 
 def read_giovanni_csv(path: pathlib.Path) -> list[tuple[str, float]]:
@@ -91,8 +101,9 @@ def build_no2(india: pathlib.Path, china: pathlib.Path) -> None:
     series = []
     for label, path in (("Indo-Gangetic Plain, India", india), ("North China Plain", china)):
         months, vals = monthly_from_daily(read_giovanni_csv(path))
+        vals = [None if v is None else v / 1e15 for v in vals]  # readable numbers on cards and axes (audit #2)
         series.append(series_with_analysis({
-            "name": f"Tropospheric NO2, {label}", "units": "molecules/cm2",
+            "name": f"Tropospheric NO2, {label}", "units": "10^15 molecules/cm2",
             "source": "OMI OMNO2d v004 via NASA Giovanni (area-averaged, monthly means of daily values)",
             "dates": months, "values": vals}))
     save("no2", {"id": "no2", "title": "Two countries, one gas", "series": series})
