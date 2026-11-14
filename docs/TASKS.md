@@ -17,9 +17,10 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [x] **Part 2. Fix the rate of change when months are missing** (Audit #1). `backend/trendlab/stats.py:58,70`.
   Use `scipy.stats.theilslopes(x[ok], np.arange(x.size)[ok])` so each value keeps its real month. It returns the slope and its low and high bounds in one call.
   Done when: a new test with 30% of months removed from a 0.12-per-year series gives a slope within 5% of 0.12 (today it gives 0.167).
-- [ ] **Part 2. Add the confidence interval to the Analysis JSON.** The challenge asks for it. New field `slope_ci_per_year: [low, high]` from the same `theilslopes` call. Nothing existing changes.
+- [x] **Part 2. Add the confidence interval to the Analysis JSON.** The challenge asks for it. New field `slope_ci_per_year: [low, high]` from the same `theilslopes` call. Nothing existing changes.
   That interval ignores autocorrelation, so it is too narrow for sticky series. Widen its half-width by `sqrt((1 + phi) / (1 - phi))` with `phi` from `noise_params`, and say on the methods page that this is an approximation.
   Done when: the field is in `/api/point` and the test above also checks that the interval contains 0.12.
+  Note (Venkat): one series cannot pass that check reliably: a 95% interval misses the true value 5% of the time, and seed 0 of the test above does miss it (0.110 to 0.120). The test checks coverage instead: 88+ of 100 series must contain 0.12 (measured 95% over 300).
 - [ ] **Part 1. Keep empty months as `null`** (Audit #1). `backend/data/build_cases.py:54-62`, `monthly_from_daily`. Write every month from first to last.
   Done when: a test feeds daily rows with one month missing and gets that month back as `None`.
 - [ ] **Part 1. Store NO2 in units of 10^15 molecules/cm2** (Audit #2). `build_no2`, `backend/data/build_cases.py:90-99`.

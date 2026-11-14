@@ -50,3 +50,8 @@ We compared six corrections on the same simulations. Hamed-Rao (all lags) still 
 Real scans (NASA POWER, 1981-2025, 199 permutations, about 30 s each): Tamil Nadu 267 tests, 5 clusters pass;
 Punjab-Haryana 315 tests, 5 clusters pass (rising humidity and rainfall, cooling); Kerala/Western Ghats 261 tests, 5 clusters pass.
 Sunlight is not scanned: it comes on a coarser 1-degree grid, and stretching it would duplicate pixels.
+
+## 6. Confidence interval for the rate of change
+`slope_ci_per_year` = Theil-Sen 95% interval on the real month positions, each half widened by
+sqrt((1 + phi) / (1 - phi)) for autocorrelation. This widening is an approximation.
+With 30% of months missing it contained the true rate in 95% of 300 simulated series (test: 88+ of 100).

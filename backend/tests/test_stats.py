@@ -37,6 +37,26 @@ def test_slope_with_missing_months_keeps_real_positions():
     assert trend_test(x, "honest")["slope_per_year"] == pytest.approx(0.12, rel=0.05)
 
 
+def test_ci_covers_the_true_rate_about_95_percent_of_the_time():
+    # A single series misses the true rate 5% of the time by design (seed 0 here does),
+    # so the check is coverage over many series, not one.
+    covered = 0
+    for seed in range(100):
+        rng = np.random.default_rng(seed)
+        x = 0.01 * np.arange(360) + rng.normal(0, 0.3, 360)
+        x[rng.random(360) < 0.3] = np.nan
+        lo, hi = trend_test(x)["slope_ci_per_year"]
+        covered += lo < 0.12 < hi
+    assert covered >= 88  # measured 95% over 300 seeds
+
+
+def test_ci_is_wider_for_sticky_series():
+    a = ar1_noise_cube(300, 1, 1, phi=0.0, seed=2)[:, 0, 0]
+    b = ar1_noise_cube(300, 1, 1, phi=0.7, seed=2)[:, 0, 0]
+    width = lambda r: r["slope_ci_per_year"][1] - r["slope_ci_per_year"][0]
+    assert width(trend_test(b)) > width(trend_test(a))
+
+
 def test_slope_with_a_long_gap():
     rng = np.random.default_rng(1)
     x = 0.01 * np.arange(300) + rng.normal(0, 0.3, 300)

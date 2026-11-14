@@ -62,14 +62,19 @@ def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0
     if x.size < 24:
         raise ValueError("Need at least 24 monthly values for a trend test.")
     if np.nanstd(x) == 0:
-        return {"method": method, "n": int(x.size), "slope_per_year": 0.0, "p": 1.0,
-                "z": 0.0, "significant": False, "direction": "no trend"}
+        return {"method": method, "n": int(x.size), "slope_per_year": 0.0, "slope_ci_per_year": [0.0, 0.0],
+                "p": 1.0, "z": 0.0, "significant": False, "direction": "no trend"}
     # The library can return NaN on odd series; we treat that as "not significant".
     with np.errstate(invalid="ignore", divide="ignore"):
         res = METHODS[method](x, alpha=alpha)
     # Rate of change comes from Sen's slope on the series itself (pre-whitening shrinks the
     # slope of the transformed series), using each value's real month (audit #1).
-    slope, _, _, _ = theilslopes(x, t)
+    slope, _, lo, hi = theilslopes(x, t)
+    # theilslopes' 95% interval assumes independent months; widen each half for "sticky"
+    # series by sqrt((1 + phi) / (1 - phi)). An approximation (docs/validation.md section 6).
+    phi = float(np.clip(noise_params(x)["phi"], 0.0, 0.95))
+    widen = math.sqrt((1 + phi) / (1 - phi))
+    ci = [float(slope - (slope - lo) * widen) * 12.0, float(slope + (hi - slope) * widen) * 12.0]
     slope_year = float(slope) * 12.0
     p = float(res.p) if np.isfinite(res.p) else 1.0
     significant = p < alpha
@@ -80,6 +85,7 @@ def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0
         "method": method,
         "n": int(x.size),
         "slope_per_year": slope_year,
+        "slope_ci_per_year": ci,
         "p": p,
         "z": float(res.z) if np.isfinite(res.z) else 0.0,
         "significant": bool(significant),
