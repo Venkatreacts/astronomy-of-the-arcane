@@ -42,8 +42,9 @@ input[type="number"] { width: 110px; }
 .card-big { font-size: 1.3rem; font-weight: 700; }
 .card-huge { font-size: 2.6rem; font-weight: 800; }
 .card-small { font-size: .85rem; color: var(--muted); }
-.callout { grid-column: 1 / -1; margin: 0; padding: 10px 12px; border-left: 4px solid var(--naive);
-  background: var(--card); border-radius: 6px; }
+.callout { grid-column: 1 / -1; margin: 0; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--naive) 45%, transparent);
+  background: color-mix(in srgb, var(--naive) 8%, var(--card)); }
 .error { color: #b00020; }
 .source { font-size: .8rem; color: var(--muted); }
 .case-series { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
