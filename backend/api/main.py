@@ -13,6 +13,7 @@ import sys
 from functools import lru_cache
 
 import numpy as np
+import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -96,8 +97,10 @@ def point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-18
         raise HTTPException(400, "Need at least 5 years.")
     try:
         return _point(round(lat, 2), round(lon, 2), param, start, end)
-    except Exception as exc:  # upstream NASA POWER errors
+    except requests.RequestException as exc:  # NASA POWER unreachable or returned an error
         raise HTTPException(502, f"NASA POWER request failed: {exc}") from exc
+    except ValueError as exc:  # our own analysis, e.g. too few usable months
+        raise HTTPException(400, f"Cannot analyse this place: {exc}") from exc
 
 
 NOISE = BACKEND.parent / "web" / "public" / "data" / "noise"

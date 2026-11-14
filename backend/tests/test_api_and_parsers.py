@@ -57,6 +57,22 @@ def test_params_return_a_definition_when_the_data_session_adds_one(monkeypatch):
     assert out["T2M"]["definition"] is None
 
 
+def test_point_errors_are_not_all_blamed_on_nasa(monkeypatch):
+    # Audit #6: NASA POWER failures -> 502; our own analysis failing (too few months) -> 400.
+    import requests
+
+    def nasa_down(*a, **k):
+        raise requests.ConnectionError("boom")
+    m._point.cache_clear()
+    monkeypatch.setattr(m, "get_monthly_point", nasa_down)
+    assert client.get("/api/point?lat=10&lon=10&param=T2M").status_code == 502
+
+    m._point.cache_clear()
+    monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series(n=12))
+    r = client.get("/api/point?lat=11&lon=11&param=T2M")
+    assert r.status_code == 400 and "24 monthly values" in r.json()["detail"]
+
+
 def test_point_returns_the_confidence_interval(monkeypatch):
     m._point.cache_clear()
     monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series())

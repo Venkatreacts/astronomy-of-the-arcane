@@ -49,7 +49,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [ ] **Part 1. Case 1 data, NO2.** In Giovanni, make two "Time Series, Area-Averaged" plots of OMNO2d tropospheric column (cloud-screened), 2005-01 to 2025-12, boxes 75,22,88,30 (India) and 113,34,120,40 (China). Download both CSVs, then
   `python data/build_cases.py no2 --india raw/giovanni_india.csv --china raw/giovanni_china.csv`.
   Done when: `no2.json` exists and India is rising while China is falling after 2012. If the result does not show that, tell the team before building the story on it.
-- [ ] **Part 4. Honest error messages on `/api/point`** (Audit #6). `requests.RequestException` gives 502, `ValueError` gives 400 with its own text.
+- [x] **Part 4. Honest error messages on `/api/point`** (Audit #6). `requests.RequestException` gives 502, `ValueError` gives 400 with its own text.
 - [ ] **Part 5. Disable the city buttons while a fetch runs** (Audit #8). `disabled={busy}`.
 - [ ] **Part 3. Three small tests** (Audit #7): the POWER parser, the Giovanni CSV parser, one `TestClient` call to a case file.
 - [ ] **Part 1. Split the requirements file** (Audit #9). `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
