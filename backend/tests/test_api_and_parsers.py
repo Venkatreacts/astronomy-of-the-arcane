@@ -73,6 +73,55 @@ def test_point_errors_are_not_all_blamed_on_nasa(monkeypatch):
     assert r.status_code == 400 and "24 monthly values" in r.json()["detail"]
 
 
+# ---- Audit #7: the two data parsers and a case-file call (parsers are only read, not edited, here)
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.payload
+
+
+def test_power_parser_drops_annual_month_and_fill_values(monkeypatch):
+    import fetch_power
+    payload = {"properties": {"parameter": {"T2M": {
+        "198101": 25.0, "198102": -999.0, "198103": 27.5, "198113": 26.0}}}}
+    monkeypatch.setattr(fetch_power.requests, "get", lambda *a, **k: FakeResponse(payload))
+    s = fetch_power.get_monthly_point(13.0, 80.0, "T2M", 1981, 1981)
+    assert s["dates"] == ["1981-01", "1981-02", "1981-03"]  # month "13" (annual) dropped
+    assert s["values"] == [25.0, None, 27.5]                  # -999 fill -> None
+    assert s["units"] == "degC"
+
+
+def test_giovanni_csv_parser_skips_header_and_fill(tmp_path):
+    import build_cases
+    p = tmp_path / "giovanni.csv"
+    p.write_text("\n".join([
+        "Title:,Area-averaged time series",
+        "Fill Value (mean_OMNO2d):,-1.26765e+30",
+        "",
+        "time,mean_OMNO2d_004_ColumnAmountNO2TropCloudScreened",
+        "2005-01-01 00:00:00,3.1e15",
+        "2005-01-02 00:00:00,-1.26765e+30",
+        "2005-02-01 00:00:00,2.9e15",
+    ]), encoding="utf-8")
+    rows = build_cases.read_giovanni_csv(p)
+    assert len(rows) == 3, "header line not found: check it is exactly 'time,...'"
+    assert rows[0] == ("2005-01-01", 3.1e15) and rows[2] == ("2005-02-01", 2.9e15)
+    assert np.isnan(rows[1][1])  # fill value becomes NaN
+
+
+def test_case_file_endpoint_and_path_tricks():
+    r = client.get("/api/cases/chennai")
+    assert r.status_code == 200 and r.json()["series"][0]["dates"][0] == "1981-01"
+    assert client.get("/api/cases/..%2F..%2Fapi%2Fmain").status_code == 404
+    assert client.get("/api/cases/nope").status_code == 404
+
+
 def test_point_returns_the_confidence_interval(monkeypatch):
     m._point.cache_clear()
     monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series())

@@ -51,8 +51,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
   Done when: `no2.json` exists and India is rising while China is falling after 2012. If the result does not show that, tell the team before building the story on it.
 - [x] **Part 4. Honest error messages on `/api/point`** (Audit #6). `requests.RequestException` gives 502, `ValueError` gives 400 with its own text.
 - [x] **Part 5. Disable the city buttons while a fetch runs** (Audit #8). `disabled={busy}`.
-- [ ] **Part 3. Three small tests** (Audit #7): the POWER parser, the Giovanni CSV parser, one `TestClient` call to a case file.
-- [ ] **Part 1. Split the requirements file** (Audit #9). `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
+- [x] **Part 3. Three small tests** (Audit #7): the POWER parser, the Giovanni CSV parser, one `TestClient` call to a case file.
+  Done: `backend/tests/test_api_and_parsers.py` (POWER parser, Giovanni CSV parser, `/api/cases/chennai` + path tricks). `monthly_from_daily` is deliberately not tested: the data session is changing it (empty months -> null).
+- [ ] **Part 1. Split the requirements file** (Audit #9). Note for the data session: the API tests need `httpx` (FastAPI's TestClient); put it in `requirements-dev.txt`. The Region Scanner and AI Detective added `scikit-learn` and `anthropic`, which the server needs. `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
 
 ## P2: only if P0 and P1 are done
 
