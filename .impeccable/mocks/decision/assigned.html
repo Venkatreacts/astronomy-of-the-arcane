@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;width:1440px;height:900px;overflow:hidden;background:#f3f4ee;color:#1d2a24;font-family:"Source Serif 4",serif}
+.sheet{position:absolute;inset:24px;border:2px solid #1d2a24}
+.collar{position:absolute;left:0;right:0;top:0;height:64px;border-bottom:1px solid #1d2a24;display:flex;align-items:center;padding:0 24px;gap:40px;font-family:"Archivo Narrow";text-transform:uppercase;letter-spacing:.08em;font-size:13px}
+.collar b{font-size:26px;letter-spacing:.04em}
+.collar nav{margin-left:auto;display:flex;gap:28px}
+.collar nav a.on{border-bottom:3px solid #0072b2}
+.map{position:absolute;left:24px;top:88px;width:1000px;height:680px;background:#e7ebe2;border:1px solid #1d2a24;
+ background-image:linear-gradient(#1d2a2422 1px,transparent 1px),linear-gradient(90deg,#1d2a2422 1px,transparent 1px);background-size:50px 50px}
+.land{position:absolute;background:#d9dcc8;border-radius:40% 55% 45% 50%}
+.dot{position:absolute;width:12px;height:12px;border-radius:50%;background:#0072b2}
+.ring{position:absolute;width:10px;height:10px;border-radius:50%;border:2px solid #d55e00}
+.side{position:absolute;left:1048px;top:88px;right:24px;bottom:96px}
+h1{font-family:"Archivo Narrow";font-weight:700;font-size:44px;line-height:1.02;margin:0 0 16px;text-transform:uppercase}
+.lead{font-size:18px;line-height:1.5;margin:0 0 24px}
+.num{display:flex;gap:24px;border-top:1px solid #1d2a24;padding-top:16px}
+.num div{flex:1}.num span{display:block;font-family:"Archivo Narrow";font-size:64px;font-weight:700;line-height:1}
+.u{color:#d55e00}.h{color:#0072b2}
+.lbl{font-family:"Archivo Narrow";text-transform:uppercase;font-size:12px;letter-spacing:.08em}
+.foot{position:absolute;left:24px;right:24px;bottom:16px;height:56px;border-top:1px solid #1d2a24;display:flex;gap:40px;align-items:center;font-family:"Archivo Narrow";font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.btn{margin-top:28px;display:inline-block;background:#1d2a24;color:#f3f4ee;padding:14px 22px;font-family:"Archivo Narrow";text-transform:uppercase;letter-spacing:.08em}
+.pin{position:absolute;left:700px;top:330px;font-family:"Archivo Narrow";font-size:13px}
+.pin:before{content:"";position:absolute;left:-60px;top:8px;width:56px;border-top:1px solid #1d2a24}
+</style></head><body><div class="sheet">
+<div class="collar"><b>Noise Trap</b><span>World sheet · 5° grid · 1981–2025</span><span>NASA POWER / MERRA-2</span>
+<nav><a class="on">Atlas</a><a>The trap</a><a>Your place</a><a>Scan a region</a><a>Detective</a></nav></div>
+<div class="map">
+<div class="land" style="left:120px;top:120px;width:260px;height:200px"></div>
+<div class="land" style="left:240px;top:360px;width:140px;height:240px"></div>
+<div class="land" style="left:470px;top:110px;width:420px;height:240px"></div>
+<div class="land" style="left:500px;top:340px;width:180px;height:220px"></div>
+<div class="land" style="left:800px;top:440px;width:140px;height:100px"></div>
+<div class="dot" style="left:180px;top:170px"></div><div class="dot" style="left:230px;top:200px"></div><div class="dot" style="left:560px;top:150px"></div>
+<div class="dot" style="left:610px;top:180px"></div><div class="dot" style="left:660px;top:160px"></div><div class="dot" style="left:720px;top:240px"></div>
+<div class="ring" style="left:300px;top:420px"></div><div class="ring" style="left:540px;top:400px"></div><div class="ring" style="left:600px;top:470px"></div>
+<div class="ring" style="left:830px;top:470px"></div><div class="ring" style="left:690px;top:320px"></div>
+<div class="pin" style="left:760px;top:310px">13.1°N 80.3°E · usual: rising · honest: not proven, 17 more years</div>
+</div>
+<div class="side">
+<div class="lbl">Sheet 01 · Air temperature</div>
+<h1>Most "trends" in Earth data are noise.</h1>
+<p class="lead">The usual test treats every month as a fresh coin toss. Real weather is sticky, so it sees trends that are not there. We run it next to an honest test on every cell of the planet.</p>
+<div class="num"><div><span class="u">63%</span><div class="lbl">of cells "changing" by the usual test</div></div>
+<div><span class="h">41%</span><div class="lbl">pass the honest test</div></div></div>
+<span class="btn">See the trap work on pure noise →</span>
+</div>
+<div class="foot"><span>● honest test, FDR 0.10</span><span>○ usual test only</span><span>Pre-whitened Mann-Kendall · Kulkarni &amp; von Storch 1995</span><span style="margin-left:auto">Air temp · Rain · Soil · Humidity · Wind</span></div>
+</div></body></html>

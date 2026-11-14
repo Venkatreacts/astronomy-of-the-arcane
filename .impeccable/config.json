@@ -1,0 +1,44 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "hero-eyebrow-chip",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-11-14T15:29:17.992Z",
+        "reason": "Claude: decision-page comp, not shipped UI; user picked Dark satellite plate"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-zine.html"
+        ],
+        "createdAt": "2026-11-14T15:29:18.106Z",
+        "reason": "Claude: rejected decision-page comp, not shipped UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-11-14T15:49:26.737Z",
+        "reason": "Claude: rejected decision-page comp with its own fonts, not shipped UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-zine.html"
+        ],
+        "createdAt": "2026-11-14T15:49:26.844Z",
+        "reason": "Claude: rejected decision-page comp with its own fonts, not shipped UI"
+      }
+    ]
+  }
+}

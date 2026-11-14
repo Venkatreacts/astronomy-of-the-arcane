@@ -36,7 +36,7 @@ export default function DetectiveView() {
 
   return (
     <section>
-      <h2>AI Detective</h2>
+      <h2>Ask the detective</h2>
       <p className="lead">
         Ask a question in plain English. The detective plans an investigation, runs our tested NASA-data tools
         (never its own code), and may only quote numbers those tools returned. Every step is shown below.
@@ -64,7 +64,7 @@ export default function DetectiveView() {
               <li key={i}>
                 <details>
                   <summary>
-                    {t.ok ? '✓' : '✗'} {TOOL_LABELS[t.tool] || t.tool} <code>{JSON.stringify(t.input)}</code>
+                    <span className={t.ok ? 'h' : 'u'}>{t.ok ? 'Done' : 'Failed'}</span> · {TOOL_LABELS[t.tool] || t.tool} <code>{JSON.stringify(t.input)}</code>
                   </summary>
                   <pre>{t.result_preview}</pre>
                 </details>

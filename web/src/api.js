@@ -5,8 +5,10 @@ const STATIC = `${import.meta.env.BASE_URL}data`
 
 async function getStatic(path) {
   const res = await fetch(`${STATIC}/${path}`)
-  if (!res.ok) throw new Error(`Missing demo file ${path} (run backend/scripts/build_static.py)`)
-  return res.json()
+  // dev servers and static hosts answer a missing file with index.html, so a JSON parse failure means missing too
+  const data = res.ok ? await res.json().catch(() => null) : null
+  if (!data) throw new Error(`Missing demo file ${path} (run the build scripts in backend/scripts)`)
+  return data
 }
 
 async function get(path) {
@@ -36,8 +38,11 @@ export const api = {
   caseFile: (id) => getStatic(`cases/${encodeURIComponent(id)}.json`),
   point: ({ lat, lon, param }) =>
     get(`/api/point?lat=${lat}&lon=${lon}&param=${encodeURIComponent(param)}`),
-  scanPresets: () => get('/api/scan/presets'),
+  scanPresets: () => getStatic('scans/index.json').catch(() => get('/api/scan/presets')),
+  scanPreset: (id) => getStatic(`scans/${encodeURIComponent(id)}.json`),
   scan: ([latMin, latMax, lonMin, lonMax]) =>
     get(`/api/scan?lat_min=${latMin}&lat_max=${latMax}&lon_min=${lonMin}&lon_max=${lonMax}`),
+  atlasIndex: () => getStatic('atlas/index.json'),
+  atlas: (id) => getStatic(`atlas/${encodeURIComponent(id)}.json`),
   noiseTrap: ({ phi, trend = 0 }) => getStatic(`noise/phi${phi.toFixed(1)}_trend${trend.toFixed(1)}.json`),
 }

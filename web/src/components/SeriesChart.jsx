@@ -18,7 +18,7 @@ export default function SeriesChart({ series, height = 320 }) {
         { x: dates, y, type: 'scatter', mode: 'lines', name: 'Monthly anomaly',
           line: { color: '#7a8597', width: 1 } },
         { x: [dates[firstIdx], dates[lastIdx]], y: lineY, type: 'scatter', mode: 'lines',
-          name: "Trend (Sen's slope)", line: { color: '#d55e00', width: 3 } },
+          name: "Trend (Sen's slope)", line: { color: '#e9eef2', width: 3 } },
       ]}
       layout={{
         title: { text: name, font: { size: 15 } },

@@ -7,19 +7,18 @@ function fmt(x, signed = false) {
   return signed && x > 0 ? `+${s}` : s
 }
 
-function Card({ label, result, units, tone }) {
-  const verdict = result.significant
-    ? `Significant: ${result.direction}`
-    : 'No clear trend yet'
+function Row({ label, result, units, tone }) {
   const ci = result.slope_ci_per_year
   return (
-    <div className={`card verdict ${tone}`}>
-      <div className="card-label">{label}</div>
-      <div className="card-big">{verdict}</div>
-      <div className="card-small">
-        Rate {fmt(result.slope_per_year * 10, true)} {units} per decade
-        {ci && ` (95% range ${fmt(ci[0] * 10, true)} to ${fmt(ci[1] * 10, true)})`} · p = {result.p.toFixed(3)}
-      </div>
+    <div className={`vrow ${tone}`}>
+      <dt>{label}</dt>
+      <dd>
+        <span className="vword">{result.significant ? `Trend: ${result.direction}` : 'No clear trend yet'}</span>
+        <span className="small">
+          Rate {fmt(result.slope_per_year * 10, true)} {units} per decade
+          {ci && ` (95% range ${fmt(ci[0] * 10, true)} to ${fmt(ci[1] * 10, true)})`} · p = {result.p.toFixed(3)}
+        </span>
+      </dd>
     </div>
   )
 }
@@ -28,28 +27,26 @@ export default function Verdict({ analysis, units }) {
   const { naive, honest, years_more_needed: more, record_years: rec, noise } = analysis
   const disagree = naive.significant !== honest.significant
   return (
-    <div className="verdicts">
-      <Card label="Usual method (plain Mann-Kendall)" result={naive} units={units} tone="naive" />
-      <Card label="Noise Trap (autocorrelation removed)" result={honest} units={units} tone="honest" />
-      <div className="card verdict info">
-        <div className="card-label">When will we know?</div>
-        {honest.significant ? (
-          <div className="card-big">Already detectable</div>
-        ) : more == null ? (
-          <div className="card-big">No measurable trend</div>
-        ) : (
-          <div className="card-big">≈ {Math.ceil(more)} more years</div>
-        )}
-        <div className="card-small">
-          {rec.toFixed(0)} years of data so far · month-to-month "stickiness" φ = {noise.phi.toFixed(2)}
+    <>
+      <dl className="verdicts">
+        <Row label="Usual test" result={naive} units={units} tone="u" />
+        <Row label="Honest test" result={honest} units={units} tone="h" />
+        <div className="vrow">
+          <dt>When will we know?</dt>
+          <dd>
+            <span className="vword">
+              {honest.significant ? 'Already detectable' : more == null ? 'No measurable trend' : `About ${Math.ceil(more)} more years`}
+            </span>
+            <span className="small">{rec.toFixed(0)} years of data so far · each month resembles the last by φ = {noise.phi.toFixed(2)}</span>
+          </dd>
         </div>
-      </div>
+      </dl>
       {disagree && (
         <p className="callout" role="note">
-          The two methods disagree. This series is "sticky" (each month resembles the last), which makes
-          the usual test see a trend too easily. Treat the usual verdict with caution.
+          The two tests disagree. This series is sticky (each month resembles the last), which makes the usual
+          test see a trend too easily. Do not trust the usual verdict here.
         </p>
       )}
-    </div>
+    </>
   )
 }

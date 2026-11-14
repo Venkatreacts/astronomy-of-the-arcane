@@ -6,12 +6,14 @@ import PlacePicker from '../components/PlacePicker'
 
 const PLACES = [
   { name: 'Chennai', lat: 13.08, lon: 80.27 },
-  { name: 'Delhi', lat: 28.61, lon: 77.21 },
-  { name: 'Mumbai', lat: 19.08, lon: 72.88 },
-  { name: 'Kolkata', lat: 22.57, lon: 88.36 },
+  { name: 'Niamey, Sahel', lat: 13.51, lon: 2.11 },
+  { name: 'Manaus, Amazon', lat: -3.12, lon: -60.02 },
+  { name: 'Phoenix', lat: 33.45, lon: -112.07 },
+  { name: 'Madrid', lat: 40.42, lon: -3.7 },
+  { name: 'Yakutsk', lat: 62.03, lon: 129.73 },
 ]
 
-export default function InvestigateView() {
+export default function InvestigateView({ pick }) {
   const [params, setParams] = useState([])
   const [form, setForm] = useState({ lat: 13.08, lon: 80.27, param: 'T2M' })
   const [data, setData] = useState(null)
@@ -19,7 +21,7 @@ export default function InvestigateView() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.params().then(setParams).catch((e) => setError(e.message))
+    api.params().then(setParams).catch(() => setError('Live NASA data needs the backend running (see README). The globe, the trap and the case file below work offline.'))
   }, [])
 
   async function run(next = form) {
@@ -28,57 +30,74 @@ export default function InvestigateView() {
     try {
       setData(await api.point(next))
     } catch (e) {
-      setError(e.message)
+      setError(e.message === 'Failed to fetch' ? 'Could not reach the backend for live NASA data.' : e.message)
     } finally {
       setBusy(false)
     }
   }
 
+  // A square clicked on the globe opens here. Variables only the globe has fall back to the current one.
+  useEffect(() => {
+    if (!pick) return
+    const next = { lat: pick.lat, lon: pick.lon, param: ['T2M', 'PRECTOTCORR', 'RH2M'].includes(pick.param) ? pick.param : form.param }
+    setForm(next)
+    run(next)
+  }, [pick]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <section>
-      <h2>Investigate a place</h2>
-      <p className="lead">Pick a place and a variable. We fetch NASA data since 1981, remove the seasons, and test the trend two ways.</p>
-      <div className="controls wrap">
-        {PLACES.map((p) => (
-          <button key={p.name} className="chip" disabled={busy} onClick={() => {
-            const next = { ...form, lat: p.lat, lon: p.lon }
+    <div className="investigate">
+      <h2>Test any place on Earth</h2>
+      <p className="lead">Pick a place and a variable. We fetch NASA data since 1981, remove the seasons, and run both tests on the same months.</p>
+      <div className="row">
+        <div className="pickmap">
+          <PlacePicker lat={form.lat} lon={form.lon} onPick={(lat, lon) => {
+            if (busy) return
+            const next = { ...form, lat: Number(lat.toFixed(2)), lon: Number(lon.toFixed(2)) }
             setForm(next)
             run(next)
-          }}>{p.name}</button>
-        ))}
-        <label>Latitude
-          <input type="number" step="0.01" value={form.lat}
-            onChange={(e) => setForm({ ...form, lat: Number(e.target.value) })} />
-        </label>
-        <label>Longitude
-          <input type="number" step="0.01" value={form.lon}
-            onChange={(e) => setForm({ ...form, lon: Number(e.target.value) })} />
-        </label>
-        <label>Variable
-          <select value={form.param} onChange={(e) => setForm({ ...form, param: e.target.value })}>
-            {params.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.units})</option>)}
-          </select>
-        </label>
-        <button onClick={() => run()} disabled={busy}>{busy ? 'Fetching NASA data…' : 'Investigate'}</button>
+          }} />
+        </div>
+        <div className="form">
+          <div className="chips">
+            {PLACES.map((p) => (
+              <button key={p.name} className="chip" disabled={busy} onClick={() => {
+                const next = { ...form, lat: p.lat, lon: p.lon }
+                setForm(next)
+                run(next)
+              }}>{p.name}</button>
+            ))}
+          </div>
+          <div className="fields">
+            <label>Latitude
+              <input type="number" step="0.01" value={form.lat}
+                onChange={(e) => setForm({ ...form, lat: Number(e.target.value) })} />
+            </label>
+            <label>Longitude
+              <input type="number" step="0.01" value={form.lon}
+                onChange={(e) => setForm({ ...form, lon: Number(e.target.value) })} />
+            </label>
+            <label>Variable
+              <select value={form.param} onChange={(e) => setForm({ ...form, param: e.target.value })}>
+                {params.length === 0 && <option value="T2M">Air temperature at 2 m</option>}
+                {params.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.units})</option>)}
+              </select>
+            </label>
+            <button className="primary" onClick={() => run()} disabled={busy}>{busy ? 'Fetching NASA data…' : 'Run both tests'}</button>
+          </div>
+          {params.find((p) => p.id === form.param)?.definition && (
+            <p className="small">{params.find((p) => p.id === form.param).definition}</p>
+          )}
+          <p className="small">Click the map to pick a place (snaps to 2.5°), or type exact coordinates.</p>
+          {error && <p className="error" role="alert">{error}</p>}
+        </div>
       </div>
-      <PlacePicker lat={form.lat} lon={form.lon} onPick={(lat, lon) => {
-        if (busy) return
-        const next = { ...form, lat: Number(lat.toFixed(2)), lon: Number(lon.toFixed(2)) }
-        setForm(next)
-        run(next)
-      }} />
-      <p className="card-small">Click anywhere on the map to investigate that place (snaps to a 2.5° grid; fine-tune with the boxes).</p>
-      {params.find((p) => p.id === form.param)?.definition && (
-        <p className="card-small">{params.find((p) => p.id === form.param).definition}</p>
-      )}
-      {error && <p className="error" role="alert">{error}</p>}
       {data && (
-        <>
+        <div className="result">
           <SeriesChart series={data} />
           <Verdict analysis={data.analysis} units={data.units} />
           <p className="source">Source: {data.source}</p>
-        </>
+        </div>
       )}
-    </section>
+    </div>
   )
 }

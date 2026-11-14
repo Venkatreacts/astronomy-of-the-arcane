@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import Plot from '../components/Plot'
 import { api } from '../api'
 
-const DIVERGING = [[0, '#0072b2'], [0.5, 'rgba(127,127,127,0.12)'], [1, '#d55e00']]
-const REGIME_COLORS = ['#0072b2', '#d55e00', '#009e73', '#cc79a7', '#e69f00']
+// purple = falling, green = rising: orange and blue are reserved for the two tests
+const DIVERGING = [[0, '#cc79a7'], [0.5, 'rgba(127,127,127,0.12)'], [1, '#009e73']]
+const REGIME_COLORS = ['#009e73', '#cc79a7', '#f0e442', '#e9eef2', '#7f8a96']
 
 function sigPoints(scan, clusterMap) {
   const x = []
@@ -71,75 +72,112 @@ function RegimeMap({ scan }) {
   )
 }
 
+function Locator({ presets, active, onPick }) {
+  const boxes = presets.map((p) => {
+    const [a, b, c, d] = p.bbox
+    // clockwise ring: the other winding makes geo fill everything outside the box
+    return { type: 'scattergeo', mode: 'lines', lat: [a, b, b, a, a], lon: [c, c, d, d, c], customdata: Array(5).fill(p.id),
+      fill: 'toself', fillcolor: p.id === active ? 'rgba(86,180,233,0.35)' : 'rgba(233,238,242,0.12)',
+      line: { color: p.id === active ? '#56b4e9' : '#8b96a2', width: 1.5 }, hovertemplate: `${p.name}<extra></extra>` }
+  })
+  return (
+    <Plot
+      data={boxes}
+      layout={{ height: Math.round(Math.min(300, window.innerWidth * 0.55)), margin: { l: 0, r: 0, t: 0, b: 0 },
+        showlegend: false, paper_bgcolor: 'rgba(0,0,0,0)',
+        geo: { projection: { type: 'natural earth' }, showland: true, landcolor: '#141d26', showocean: true,
+          oceancolor: '#070b10', showframe: false, coastlinecolor: '#2b3947', bgcolor: 'rgba(0,0,0,0)',
+          lataxis: { range: [-50, 75] } } }}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: '100%' }}
+      useResizeHandler
+      onClick={(e) => { const id = e?.points?.[0]?.customdata; if (id) onPick(presets.find((p) => p.id === id)) }}
+    />
+  )
+}
+
 export default function ScanView() {
   const [presets, setPresets] = useState([])
+  const [active, setActive] = useState(null)
   const [box, setBox] = useState([9.5, 13.5, 77.0, 81.0])
   const [scan, setScan] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  async function run(b = box) {
+  async function run(b = box, preset = null) {
     setBusy(true)
     setError('')
+    setActive(preset?.id ?? null)
     try {
-      setScan(await api.scan(b))
+      // Presets are pre-computed into the web app (works offline); a custom box needs the live backend.
+      setScan(preset ? await api.scanPreset(preset.id).catch(() => api.scan(b)) : await api.scan(b))
     } catch (e) {
-      setError(e.message)
+      setError(e.message === 'Failed to fetch' ? 'A custom box needs the backend running for live NASA data. The listed regions work offline.' : e.message)
     } finally {
       setBusy(false)
     }
   }
 
   useEffect(() => {
-    api.scanPresets().then(setPresets).catch((e) => setError(e.message))
-  }, [])
+    api.scanPresets().then((list) => {
+      setPresets(list)
+      if (list[0]) { setBox(list[0].bbox); run(list[0].bbox, list[0]) }
+    }).catch((e) => setError(e.message))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const s = scan?.summary
   const labels = ['Lat min', 'Lat max', 'Lon min', 'Lon max']
+  const pick = (p) => { setBox(p.bbox); run(p.bbox, p) }
 
   return (
-    <section>
-      <h2>Scan a region</h2>
+    <div className="scanner">
+      <h2>Scan a whole region</h2>
       <p className="lead">
-        We test every grid point for 5 NASA variables at once, then keep only the trend clusters that are
-        stronger than chance (199 shuffles of time) and control false discoveries across all tests.
+        Every 0.5° grid point, five NASA variables, both tests. Then we keep only trend clusters stronger than
+        chance (199 shuffles of time) and control false discoveries across all the tests at once.
       </p>
-      <div className="controls wrap">
-        {presets.map((p) => (
-          <button key={p.id} className="chip" onClick={() => { setBox(p.bbox); run(p.bbox) }}>{p.name}</button>
-        ))}
-        {labels.map((label, i) => (
-          <label key={label}>{label}
-            <input type="number" step="0.5" value={box[i]}
-              onChange={(e) => setBox(box.map((v, k) => (k === i ? Number(e.target.value) : v)))} />
-          </label>
-        ))}
-        <button onClick={() => run()} disabled={busy}>{busy ? 'Scanning (new regions take ~30 s)…' : 'Scan'}</button>
-      </div>
-      <p className="card-small">Box sides must be 2 to 5 degrees (NASA POWER limit).</p>
-      {error && <p className="error" role="alert">{error}</p>}
+      <div className="investigate"><div className="row">
+        <Locator presets={presets} active={active} onPick={pick} />
+        <div>
+          <div className="chips">
+            {presets.map((p) => (
+              <button key={p.id} className={`chip ${p.id === active ? 'on' : ''}`} disabled={busy} onClick={() => pick(p)}>{p.name}</button>
+            ))}
+          </div>
+          <div className="fields">
+            {labels.map((label, i) => (
+              <label key={label}>{label}
+                <input type="number" step="0.5" value={box[i]}
+                  onChange={(e) => setBox(box.map((v, k) => (k === i ? Number(e.target.value) : v)))} />
+              </label>
+            ))}
+            <button className="primary" onClick={() => run()} disabled={busy}>{busy ? 'Scanning…' : 'Scan this box'}</button>
+          </div>
+          <p className="small">Box sides 2 to 5 degrees (NASA POWER limit). A new box takes about 30 seconds.</p>
+          {error && <p className="error" role="alert">{error}</p>}
+        </div>
+      </div></div>
       {scan && (
         <>
-          <div className="scoreboard four">
-            <div className="card info"><div className="card-label">Trend tests run</div><div className="card-huge">{s.n_tests}</div></div>
-            <div className="card naive"><div className="card-label">Usual method: "significant"</div><div className="card-huge">{s.naive_hits}</div></div>
-            <div className="card honest"><div className="card-label">After honest test + FDR</div><div className="card-huge">{s.fdr_hits}</div></div>
-            <div className="card honest"><div className="card-label">Clusters stronger than chance</div><div className="card-huge">{s.significant_clusters}</div></div>
-          </div>
+          <p className="claim wide">
+            {s.n_tests.toLocaleString()} trend tests. The usual test calls <strong className="u">{s.naive_hits}</strong> of
+            them a trend; after the honest test and false-discovery control, <strong className="h">{s.fdr_hits}</strong> remain,
+            in <strong className="h">{s.significant_clusters}</strong> cluster{s.significant_clusters === 1 ? '' : 's'} stronger than chance.
+          </p>
           <h3>What we found</h3>
           <ol className="findings">{scan.findings.map((f) => <li key={f}>{f}</li>)}</ol>
           <h3>Trend maps</h3>
-          <p className="card-small">Orange = rising, blue = falling (Mann-Kendall z after removing autocorrelation). Yellow boxes = part of a cluster that passed the permutation test.</p>
+          <p className="small">Green = rising, purple = falling (trend strength after removing stickiness). Yellow squares = part of a cluster that beat the shuffles.</p>
           <div className="maps three">
             {Object.keys(scan.variables).map((id) => <VariableMap key={id} scan={scan} id={id} />)}
           </div>
           <h3>Places changing the same way</h3>
           <RegimeMap scan={scan} />
           <h3>Limits</h3>
-          <ul className="card-small">{scan.caveats.map((c) => <li key={c}>{c}</li>)}</ul>
+          <ul className="small">{scan.caveats.map((c) => <li key={c}>{c}</li>)}</ul>
           <p className="source">Source: {scan.source}</p>
         </>
       )}
-    </section>
+    </div>
   )
 }

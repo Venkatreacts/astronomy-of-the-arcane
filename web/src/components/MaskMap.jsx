@@ -11,7 +11,7 @@ export default function MaskMap({ mask, title, color, splitHalf = false }) {
     <Plot
       data={[{ z: mask, type: 'heatmap', showscale: false, hoverinfo: 'skip',
         colorscale: [[0, 'rgba(127,127,127,0.15)'], [1, color]], zmin: 0, zmax: 1, xgap: 1, ygap: 1 }]}
-      layout={{ title: { text: title, font: { size: 14 } }, height: 300,
+      layout={{ title: { text: title, font: { size: 14 } }, height: 380,
         margin: { l: 10, r: 10, t: 40, b: 10 }, shapes,
         xaxis: { visible: false }, yaxis: { visible: false, scaleanchor: 'x' },
         font: { color: '#8a94a6' },

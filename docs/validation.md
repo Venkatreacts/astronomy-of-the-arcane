@@ -71,3 +71,21 @@ loses power: very sticky data needs a longer record. The app says this on screen
 `slope_ci_per_year` = Theil-Sen 95% interval on the real month positions, each half widened by
 sqrt((1 + phi) / (1 - phi)) for autocorrelation. This widening is an approximation.
 With 30% of months missing it contained the true rate in 95% of 300 simulated series (test: 88+ of 100).
+
+## 7. Global Trend Atlas (`backend/scripts/build_atlas.py`, tests in `backend/tests/test_atlas.py`)
+NASA POWER monthly point data, 1981-2025, on a 5 degree grid from 57.5 S to 77.5 N (2016 cells; soil wetness has no
+value over the ocean, so it covers 721 land cells). Each cell gets both tests on deseasonalised anomalies, then the
+honest p values are corrected for testing every cell at once (Benjamini-Hochberg, false discovery rate 10%).
+Cells with under 80% of months present are skipped.
+
+| Variable | Cells | Usual test finds a trend | Honest test + FDR keeps it |
+|---|---|---|---|
+| Air temperature | 2016 | 87% | 79% |
+| Rainfall | 2016 | 45% | 32% |
+| Root-zone soil wetness | 721 | 71% | 19% |
+| Relative humidity | 2016 | 58% | 46% |
+| Wind speed at 2 m | 2016 | 45% | 36% |
+
+Warming survives almost everywhere: it is a strong, real signal. Soil wetness is the trap at its clearest: it is the
+stickiest variable (median phi 0.84, against 0.09-0.50 for the others; each month carries the last month's water),
+so the usual test calls most of the land changing and only 26% of those calls survive (temperature: 91%). The globe opens on whichever variable has the largest gap.
