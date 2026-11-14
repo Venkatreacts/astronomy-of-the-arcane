@@ -25,8 +25,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
   Done when: a test feeds daily rows with one month missing and gets that month back as `None`.
 - [ ] **Part 1. Store NO2 in units of 10^15 molecules/cm2** (Audit #2). `build_no2`, `backend/data/build_cases.py:90-99`.
   Done when: the NO2 verdict card shows a rate like `+0.12`, not a 15-digit number.
-- [ ] **Parts 4 + 5. Pre-compute the Noise Trap maps** (Audit #3). A script writes the ten maps (phi 0.0 to 0.9, 20 x 20, seed 0) as JSON under `web/public/data/noise/`. The web app loads those files instead of calling `/api/noise-trap`.
+- [x] **Parts 4 + 5. Pre-compute the Noise Trap maps** (Audit #3). A script writes the ten maps (phi 0.0 to 0.9, 20 x 20, seed 0) as JSON under `web/public/data/noise/`. The web app loads those files instead of calling `/api/noise-trap`.
   Done when: clicking "Run on pure noise" answers in under 1 s with the API stopped.
+  Checked: 59 ms with the API stopped. Script: `backend/scripts/build_static.py`. `/api/noise-trap` now only serves these files (the cache and warm-up thread are gone); the AI Detective's noise check reads them too.
 - [ ] **Parts 2 + 5. Positive control** (Audit #4). `noise_trap(..., trend_sd_per_decade=0.8)` adds a real trend to the left half of the map. Save those ten maps too. Second button: "Now add a real trend".
   Done when: with the trend on, our map is filled on the left half and near empty on the right.
 - [ ] **Parts 4 + 5. Serve case files as static files.** Put the case JSON (and a small `index.json` list) under `web/public/data/cases/` and load them from there.

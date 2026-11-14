@@ -88,8 +88,12 @@ def default_executor() -> Callable[[str, dict], Any]:
                     "regimes": [{"label": g["label"], "pixels": g["pixels"]} for g in r["regimes"]["regimes"]],
                     "findings": r["findings"], "caveats": r["caveats"]}
         if name == "noise_check":
-            res = noise_trap(n_time=300, ny=20, nx=20, phi=min(max(float(args["phi"]), 0.0), 0.9), seed=0)
-            return {"pixels": 400, "usual_method_fake_trend_share": res["naive_fraction"],
+            phi = round(min(max(float(args["phi"]), 0.0), 0.9), 1)
+            static = (pathlib.Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "noise"
+                      / f"phi{phi:.1f}_trend0.0.json")
+            res = (json.loads(static.read_text(encoding="utf-8")) if static.is_file()
+                   else noise_trap(n_time=300, ny=20, nx=20, phi=phi, seed=0))  # same map, computed (~15 s)
+            return {"phi": phi, "pixels": 400, "usual_method_fake_trend_share": res["naive_fraction"],
                     "honest_method_fake_trend_share": res["honest_fraction"]}
         raise ValueError(f"Unknown tool {name}")
 

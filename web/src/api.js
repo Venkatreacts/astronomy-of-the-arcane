@@ -1,5 +1,13 @@
 // API base: same origin in development (Vite proxy). Set VITE_API_URL when the API is hosted elsewhere.
 const BASE = import.meta.env.VITE_API_URL || ''
+// Pre-computed files from backend/scripts/build_static.py, served with the web app (work with no server).
+const STATIC = `${import.meta.env.BASE_URL}data`
+
+async function getStatic(path) {
+  const res = await fetch(`${STATIC}/${path}`)
+  if (!res.ok) throw new Error(`Missing demo file ${path} (run backend/scripts/build_static.py)`)
+  return res.json()
+}
 
 async function get(path) {
   const res = await fetch(`${BASE}${path}`)
@@ -31,6 +39,5 @@ export const api = {
   scanPresets: () => get('/api/scan/presets'),
   scan: ([latMin, latMax, lonMin, lonMax]) =>
     get(`/api/scan?lat_min=${latMin}&lat_max=${latMax}&lon_min=${lonMin}&lon_max=${lonMax}`),
-  noiseTrap: ({ phi, size, seed }) =>
-    get(`/api/noise-trap?phi=${phi}&size=${size}${seed != null ? `&seed=${seed}` : ''}`),
+  noiseTrap: ({ phi }) => getStatic(`noise/phi${phi.toFixed(1)}_trend0.0.json`),
 }

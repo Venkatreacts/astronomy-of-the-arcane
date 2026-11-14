@@ -28,7 +28,7 @@ export default function NoiseTrapView() {
     setBusy(true)
     setError('')
     try {
-      setResult(await api.noiseTrap({ phi, size: 20, seed: 0 }))
+      setResult(await api.noiseTrap({ phi }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -51,7 +51,7 @@ export default function NoiseTrapView() {
           <input type="range" min="0" max="0.9" step="0.1" value={phi}
             onChange={(e) => setPhi(Number(e.target.value))} />
         </label>
-        <button onClick={run} disabled={busy}>{busy ? 'Testing 400 pixels…' : 'Run on pure noise'}</button>
+        <button onClick={run} disabled={busy}>Run on pure noise</button>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       {result && (

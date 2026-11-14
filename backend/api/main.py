@@ -21,7 +21,7 @@ sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(BACKEND / "data"))
 
 from fetch_power import PARAMS, get_monthly_point  # noqa: E402
-from trendlab import analyze_series, noise_trap  # noqa: E402
+from trendlab import analyze_series  # noqa: E402
 
 CASES = BACKEND / "data" / "cases"
 
@@ -98,31 +98,14 @@ def point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-18
         raise HTTPException(502, f"NASA POWER request failed: {exc}") from exc
 
 
-@lru_cache(maxsize=64)
-def _noise(phi: float, size: int, years: int, spatial: float, seed: int) -> dict:
-    res = noise_trap(n_time=years * 12, ny=size, nx=size, phi=phi, spatial_sigma=spatial, seed=seed)
-    out = {k: res[k] for k in ("slope", "naive_fraction", "honest_fraction", "fdr_threshold", "params")}
-    # Plotly heatmaps need numbers, not booleans.
-    out["naive_mask"] = res["naive_mask"].astype(int)
-    out["honest_mask"] = res["honest_mask"].astype(int)
-    return clean(out)
+NOISE = BACKEND.parent / "web" / "public" / "data" / "noise"
 
 
 @app.get("/api/noise-trap")
-def noise(phi: float = Query(0.5, ge=0.0, le=0.9), size: int = Query(20, ge=8, le=40),
-          years: int = Query(25, ge=5, le=40), spatial: float = Query(2.0, ge=0.0, le=5.0),
-          seed: int = 0):
-    # A full map takes ~10 s, so results are cached per setting (same seed = same map).
-    return _noise(round(phi, 1), size, years, round(spatial, 1), seed)
-
-
-@app.on_event("startup")
-def warm_cache() -> None:
-    """Precompute the demo maps in the background so the first click is instant."""
-    import threading
-
-    def work():
-        for phi in (0.5, 0.3, 0.7, 0.0, 0.9, 0.1, 0.2, 0.4, 0.6, 0.8):
-            _noise(phi, 20, 25, 2.0, 0)
-
-    threading.Thread(target=work, daemon=True).start()
+def noise(phi: float = Query(0.5, ge=0.0, le=0.9)):
+    """Serves the maps pre-computed by scripts/build_static.py (audit #3: computing one live took 15-58 s).
+    The web app reads the same files directly; this endpoint is kept for API users."""
+    path = NOISE / f"phi{round(phi, 1):.1f}_trend0.0.json"
+    if not path.is_file():
+        raise HTTPException(404, "Noise maps not built yet: run python scripts/build_static.py")
+    return json.loads(path.read_text(encoding="utf-8"))
