@@ -90,3 +90,14 @@ def test_analyze_series_shape():
     assert set(out) >= {"anomalies", "naive", "honest", "noise", "years_to_detect", "record_years"}
     assert len(out["anomalies"]) == n
     assert out["honest"]["direction"] == "rising"
+    # Already detectable, so no extra years are needed.
+    assert out["years_more_needed"] == 0.0
+
+
+def test_years_more_needed_when_not_yet_significant():
+    n = 240
+    rng = np.random.default_rng(4)
+    vals = 0.0005 * np.arange(n) + rng.normal(0, 1.0, n)  # tiny trend in big noise
+    out = analyze_series(monthly_dates(n), vals)
+    assert not out["honest"]["significant"]
+    assert out["years_more_needed"] > 0

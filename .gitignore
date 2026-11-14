@@ -6,3 +6,6 @@ __pycache__/
 .DS_Store
 dist/
 build/
+
+# Large downloaded data (cached case files in backend/data/cases/ ARE committed)
+backend/data/raw/

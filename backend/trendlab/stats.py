@@ -150,8 +150,14 @@ def analyze_series(dates: Sequence[str], values: Sequence[float], alpha: float =
     naive = trend_test(anomalies, "naive", alpha)
     honest = trend_test(anomalies, "honest", alpha)
     noise = noise_params(anomalies)
-    years_needed = years_to_detect(honest["slope_per_year"], noise["sigma_n"], noise["phi"], detect_prob)
     record_years = len([v for v in anomalies if np.isfinite(v)]) / 12.0
+    # Weatherhead's formula assumes roughly normal noise; skewed variables (rain) can pass
+    # the rank-based test sooner than it predicts. So it is only reported when the honest
+    # test has NOT yet found a trend: "how many years until it could be detected?"
+    if honest["significant"]:
+        years_needed = record_years
+    else:
+        years_needed = years_to_detect(honest["slope_per_year"], noise["sigma_n"], noise["phi"], detect_prob)
     return {
         "anomalies": [None if not np.isfinite(v) else float(v) for v in anomalies],
         "naive": naive,
