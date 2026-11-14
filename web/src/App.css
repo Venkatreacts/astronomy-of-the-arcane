@@ -154,3 +154,14 @@ figcaption strong { font: 700 1.5em/1 var(--display); }
   .plate { padding-top: 64px; padding-bottom: 56px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+
+/* a chart's place while the chart code loads, so the page does not jump */
+.plot-wait { border: 1px solid var(--line); background: var(--ground-2); }
+.askform { display: grid; gap: 4px; max-width: 820px; justify-items: start; }
+.askform .ask { width: 100%; margin: 12px 0 8px; }
+.askform .pass { max-width: 260px; }
+/* finger-sized targets on touch screens */
+@media (pointer: coarse) {
+  .bar nav a { padding: 12px 0; }
+  .vars button, .chip, .switch button { min-height: 44px; }
+}

@@ -48,6 +48,8 @@ def detective(q: Question, x_demo_passcode: str = Header("")):
         except requests.RequestException as exc:
             raise HTTPException(502, "Could not reach the AI service.") from exc
 
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(503, NOT_SET_UP)
     import anthropic
 
     try:

@@ -20,8 +20,17 @@ export default function InvestigateView({ pick }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  // The free live server sleeps when idle and takes about a minute to wake, so keep asking instead of failing.
+  const [waking, setWaking] = useState(true)
   useEffect(() => {
-    api.params().then(setParams).catch(() => setError('Live NASA data needs the backend running (see README). The globe, the trap and the case file below work offline.'))
+    let tries = 0
+    let timer
+    const knock = () => api.params().then((p) => { setParams(p); setWaking(false) }).catch(() => {
+      if (++tries < 20) timer = setTimeout(knock, 5000)
+      else { setWaking(false); setError('The live server did not answer. The globe, the trap and the case file below still work.') }
+    })
+    knock()
+    return () => clearTimeout(timer)
   }, [])
 
   async function run(next = form) {
@@ -88,6 +97,7 @@ export default function InvestigateView({ pick }) {
             <p className="small">{params.find((p) => p.id === form.param).definition}</p>
           )}
           <p className="small">Click the map to pick a place (snaps to 2.5°), or type exact coordinates.</p>
+          {waking && <p className="small" role="status">Waking the live server. The first test can take about a minute.</p>}
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div>

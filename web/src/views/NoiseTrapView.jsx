@@ -61,7 +61,7 @@ export default function NoiseTrapView() {
       )}
       {withTrend && result.honest_left_fraction < 0.8 && (
         <p className="callout" role="note">
-          At φ = {phi.toFixed(1)} the honest test finds only {pct(result.honest_left_fraction)} of the real trend.
+          At φ = {result.params.phi.toFixed(1)} the honest test finds only {pct(result.honest_left_fraction)} of the real trend.
           Data this sticky carries less independent information, so any honest test needs a longer record to be sure.
           The usual test only looks better because it also flags {pct(result.naive_right_fraction)} of the empty half.
         </p>

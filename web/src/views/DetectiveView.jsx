@@ -1,34 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api'
-
-const EXAMPLES = [
-  "What is changing in the Cauvery delta, and is it real or chance?",
-  "Is Chennai really getting hotter, or could it be noise?",
-  "Is the Punjab farm belt getting wetter? What changes together there?",
-  "How often does the usual method find fake trends in sticky data?",
-]
 
 const TOOL_LABELS = {
   list_variables: 'Listed available NASA variables',
   analyze_point: 'Analysed one place',
-  scan_region: 'Scanned a region',
+  scan_region: 'Read a region scan',
   noise_check: 'Tested methods on pure noise',
 }
 
 export default function DetectiveView() {
-  const [question, setQuestion] = useState(EXAMPLES[0])
+  const [saved, setSaved] = useState([]) // questions answered ahead of time, so they open instantly and offline
+  const [question, setQuestion] = useState('')
+  const [passcode, setPasscode] = useState('') // kept in page memory only
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  async function ask(q = question) {
+  useEffect(() => { api.savedAnswers().then(setSaved).catch(() => {}) }, [])
+
+  async function show(load) {
     setBusy(true)
     setError('')
     setResult(null)
     try {
-      setResult(await api.ask(q))
+      setResult(await load())
     } catch (e) {
-      setError(e.message)
+      setError(e.message === 'Failed to fetch' ? 'Could not reach the live server. The saved answers above still work.' : e.message)
     } finally {
       setBusy(false)
     }
@@ -39,20 +36,33 @@ export default function DetectiveView() {
       <h2>Ask the detective</h2>
       <p className="lead">
         Ask a question in plain English. The detective plans an investigation, runs our tested NASA-data tools
-        (never its own code), and may only quote numbers those tools returned. Every step is shown below.
+        (never its own code), and may only quote numbers those tools or our checked notes gave it. Every step is shown below.
       </p>
-      <div className="controls wrap">
-        {EXAMPLES.map((ex) => (
-          <button key={ex} className="chip" onClick={() => { setQuestion(ex); ask(ex) }} disabled={busy}>{ex}</button>
-        ))}
-      </div>
-      <label className="ask">
-        Your question
-        <textarea rows={2} maxLength={500} value={question} onChange={(e) => setQuestion(e.target.value)} />
-      </label>
-      <button onClick={() => ask()} disabled={busy || question.trim().length < 5}>
-        {busy ? 'Investigating (can take up to a minute)…' : 'Ask the detective'}
-      </button>
+      {saved.length > 0 && (
+        <div className="controls wrap">
+          {saved.map((s) => (
+            <button key={s.id} className="chip" disabled={busy}
+              onClick={() => { setQuestion(s.question); show(() => api.savedAnswer(s.id)) }}>{s.question}</button>
+          ))}
+        </div>
+      )}
+      <form className="askform" onSubmit={(e) => { e.preventDefault(); show(() => api.ask(question, passcode)) }}>
+        <label className="ask">
+          Your own question
+          <textarea rows={2} maxLength={500} value={question} onChange={(e) => setQuestion(e.target.value)} />
+        </label>
+        <label className="ask pass">
+          Team passcode
+          <input type="password" autoComplete="off" value={passcode} onChange={(e) => setPasscode(e.target.value)} />
+        </label>
+        <button type="submit" disabled={busy || question.trim().length < 5 || !passcode}>
+          {busy ? 'Investigating (can take up to a minute)…' : 'Ask the detective'}
+        </button>
+      </form>
+      <p className="small">
+        {saved.length > 0 && 'The questions above were answered ahead of time and open instantly. '}
+        A new question runs a live AI model, so it needs the team passcode.
+      </p>
       {error && <p className="error" role="alert">{error}</p>}
       {result && (
         <>
@@ -71,7 +81,10 @@ export default function DetectiveView() {
               </li>
             ))}
           </ol>
-          <p className="source">Model: {result.model} · AI-generated summary of tool results; check the evidence trail.</p>
+          <p className="source">
+            {result.saved_on ? `Saved answer from ${result.saved_on} · ` : ''}Model: {result.model} · AI-generated summary
+            of tool results; check the evidence trail.
+          </p>
         </>
       )}
     </section>

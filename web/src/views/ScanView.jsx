@@ -153,7 +153,7 @@ export default function ScanView() {
             ))}
             <button className="primary" onClick={() => run()} disabled={busy}>{busy ? 'Scanning…' : 'Scan this box'}</button>
           </div>
-          <p className="small">Box sides 2 to 5 degrees (NASA POWER limit). A new box takes about 30 seconds.</p>
+          <p className="small">Box sides 2 to 5 degrees (NASA POWER limit). A new box runs on the live server and takes about a minute; the listed regions open instantly.</p>
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div></div>
@@ -161,8 +161,8 @@ export default function ScanView() {
         <>
           <p className="claim wide">
             {s.n_tests.toLocaleString()} trend tests. The usual test calls <strong className="u">{s.naive_hits}</strong> of
-            them a trend; after the honest test and false-discovery control, <strong className="h">{s.fdr_hits}</strong> remain,
-            in <strong className="h">{s.significant_clusters}</strong> cluster{s.significant_clusters === 1 ? '' : 's'} stronger than chance.
+            them a trend; with the stickiness removed, <strong className="h">{s.fdr_hits}</strong> pass the
+            false-discovery check, in <strong className="h">{s.significant_clusters}</strong> cluster{s.significant_clusters === 1 ? '' : 's'} stronger than chance.
           </p>
           <h3>What we found</h3>
           <ol className="findings">{scan.findings.map((f) => <li key={f}>{f}</li>)}</ol>

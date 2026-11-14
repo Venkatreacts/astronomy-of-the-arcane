@@ -20,9 +20,9 @@ async function get(path) {
   return res.json()
 }
 
-async function post(path, body) {
+async function post(path, body, headers = {}) {
   const res = await fetch(`${BASE}${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -32,7 +32,9 @@ async function post(path, body) {
 }
 
 export const api = {
-  ask: (question) => post('/api/agent', { question }),
+  ask: (question, passcode) => post('/api/agent', { question }, { 'X-Demo-Passcode': passcode }),
+  savedAnswers: () => getStatic('detective/index.json'),
+  savedAnswer: (id) => getStatic(`detective/${encodeURIComponent(id)}.json`),
   params: () => get('/api/params'),
   cases: () => getStatic('cases/index.json'),
   caseFile: (id) => getStatic(`cases/${encodeURIComponent(id)}.json`),

@@ -136,7 +136,8 @@ export default function AtlasView({ onPick }) {
             {' '}{atlas.n_cells.toLocaleString()} {land ? 'land ' : ''}squares on our {atlas.step_deg}° grid show a
             trend in {atlas.name.toLowerCase()} since {atlas.years[0]}. Take away the month-to-month
             stickiness and correct for testing them all at once:
-            {' '}<strong className="h">{pct(atlas.honest_fraction)}</strong> survive.
+            {' '}<strong className="h">{pct(atlas.honest_fraction)}</strong> survive. The rest are not proven
+            false; the data cannot yet tell them apart from noise.
           </p>
         ) : <p className="claim">{error || 'Loading the world…'}</p>}
 
