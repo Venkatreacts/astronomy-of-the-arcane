@@ -101,3 +101,31 @@ Two smaller items left out.
 **Verdict:** Good shape for a one-day build: the engine is tested and the app runs. Fix 1, 2 and 3 before any real-data case goes on screen.
 **Lean:** about -45 lines, -2 dependencies possible (`h5netcdf`, `statsmodels`).
 **Not checked:** `harmony_jobs.py`, `appeears_job.py` and `fetch_grace.py` were read but not run (they need an Earthdata Login). `build_cases.py no2 / fingerprint / grace` were not run (no downloaded data). The full `trendlab.validate` run was not repeated. The page was checked at desktop width only, with no screen-reader test.
+
+---
+
+# Second audit, Sat 14 Nov 2026 (evening)
+
+Audited `main` at `111ed0a` (everything since `fac7026`) and tested `feat/redesign` at `bedbb59`. The fixes are on branch `fix/deploy-ready`.
+
+**What changed since the first audit:** most first-audit fixes landed and the test count went from 11 to 36. Three new features arrived that the first audit never saw: the Region Scanner, the AI Detective and the click-to-pick map. Most of the new risk was in those. No secret was committed.
+
+| # | Finding | Status on `fix/deploy-ready` |
+|---|---|---|
+| 1 | Anyone with the link could spend the AI key: no login, no limit, up to 10 model calls per question | Fixed. Live questions need a passcode header; 4 turns at most; saved answers need no AI call. |
+| 2 | A new region scan takes a minute or more, and the Detective could start one | Fixed for the Detective and the connector (they read only the nine saved regions). The `perms` parameter is gone. A custom box typed on the page still takes about a minute, and the page says so. |
+| 3 | Two tabs would not work on static hosting | Fixed by design: the API runs on Render, and the listed scans and saved answers are static files. |
+| 4 | `monthly_from_daily` still dropped empty months (NO2 rate about 30% too big) | Fixed, with a test. |
+| 5 | One 462 MB requirements list | Fixed: server list and dev list; `statsmodels` and `h5netcdf` dropped. |
+| 6 | Detective had no timeout | Fixed: 40 s per model call. |
+| 7 | Detective noise check would recompute for 15 s on static hosting | Not needed: on Render the saved maps are on disk. |
+| 8 | Noise Trap note quoted the slider's phi, not the map's | Fixed. |
+| 9 | Scan preset buttons stayed active during a scan | Already fixed in the redesign. |
+| 10 | "189 remain" read as a subset when it is not | Fixed: "pass the false-discovery check", in the page and in every saved scan. |
+| 11 | No tests on the scan and Detective routes | Fixed: 11 new tests (passcode, Gemini loop, preset snapping, scan route, connector). |
+| 12 | Leftover endpoints and a helper copied three times | Left as is; nothing breaks. |
+| 13 | Southern and western places printed as "-27.5N, -57.5E" | Fixed. |
+
+First-audit items still open: #10 (the chart library is still 4.7 MB, but it now loads after the page; first load is 257 kB) and the NO2 case file itself, which needs the two Giovanni CSVs.
+
+**Not checked:** no real AI call has been made yet, so the Detective's real speed and answer quality on Gemini are unknown until the key is set on Render. The live NASA regional download was not timed.

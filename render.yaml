@@ -1,0 +1,23 @@
+# Render blueprint for the API (the web app is a static site on Vercel).
+# Secrets are set in the Render dashboard, never here:
+#   GEMINI_API_KEY      free key from Google AI Studio, for the AI Detective
+#   DETECTIVE_PASSCODE  the team passcode for live Detective questions
+#   ALLOWED_ORIGINS     the web app's URL, e.g. https://noise-trap.vercel.app
+services:
+  - type: web
+    name: noise-trap-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DETECTIVE_PASSCODE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
