@@ -1,21 +1,24 @@
 // Side-by-side verdicts: plain Mann-Kendall vs the Noise Trap (pre-whitened) test.
 
-function fmtRate(slopePerYear, units) {
-  const perDecade = slopePerYear * 10
-  const sign = perDecade > 0 ? '+' : ''
-  return `${sign}${perDecade.toFixed(3)} ${units} per decade`
+// 3 significant figures; scientific notation for very large or tiny numbers (e.g. NO2 in molecules/cm2).
+function fmt(x, signed = false) {
+  const a = Math.abs(x)
+  const s = a !== 0 && (a >= 1e4 || a < 1e-3) ? x.toExponential(2) : Number(x.toPrecision(3)).toString()
+  return signed && x > 0 ? `+${s}` : s
 }
 
 function Card({ label, result, units, tone }) {
   const verdict = result.significant
     ? `Significant: ${result.direction}`
     : 'No clear trend yet'
+  const ci = result.slope_ci_per_year
   return (
     <div className={`card verdict ${tone}`}>
       <div className="card-label">{label}</div>
       <div className="card-big">{verdict}</div>
       <div className="card-small">
-        Rate {fmtRate(result.slope_per_year, units)} · p = {result.p.toFixed(3)}
+        Rate {fmt(result.slope_per_year * 10, true)} {units} per decade
+        {ci && ` (95% range ${fmt(ci[0] * 10, true)} to ${fmt(ci[1] * 10, true)})`} · p = {result.p.toFixed(3)}
       </div>
     </div>
   )
