@@ -50,7 +50,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
   `python data/build_cases.py no2 --india raw/giovanni_india.csv --china raw/giovanni_china.csv`.
   Done when: `no2.json` exists and India is rising while China is falling after 2012. If the result does not show that, tell the team before building the story on it.
 - [x] **Part 4. Honest error messages on `/api/point`** (Audit #6). `requests.RequestException` gives 502, `ValueError` gives 400 with its own text.
-- [ ] **Part 5. Disable the city buttons while a fetch runs** (Audit #8). `disabled={busy}`.
+- [x] **Part 5. Disable the city buttons while a fetch runs** (Audit #8). `disabled={busy}`.
 - [ ] **Part 3. Three small tests** (Audit #7): the POWER parser, the Giovanni CSV parser, one `TestClient` call to a case file.
 - [ ] **Part 1. Split the requirements file** (Audit #9). `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
 

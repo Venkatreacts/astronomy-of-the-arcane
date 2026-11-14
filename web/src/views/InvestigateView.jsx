@@ -40,7 +40,7 @@ export default function InvestigateView() {
       <p className="lead">Pick a place and a variable. We fetch NASA data since 1981, remove the seasons, and test the trend two ways.</p>
       <div className="controls wrap">
         {PLACES.map((p) => (
-          <button key={p.name} className="chip" onClick={() => {
+          <button key={p.name} className="chip" disabled={busy} onClick={() => {
             const next = { ...form, lat: p.lat, lon: p.lon }
             setForm(next)
             run(next)
