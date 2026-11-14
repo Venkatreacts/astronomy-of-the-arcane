@@ -102,7 +102,8 @@ export default function Globe({ cells, step = 5, paint, paintKey, sweep = true, 
 
     const draw = (now) => {
       const { w, h } = g
-      const R = (Math.min(w, h) / 2) * 0.9
+      // a hidden or collapsed pane can report a negative size; canvas gradients reject negative radii
+      const R = Math.max(0, (Math.min(w, h) / 2) * 0.9)
       const cx = w / 2
       const cy = h / 2
       const proj = geoOrthographic().translate([cx, cy]).scale(R).rotate(g.rot).clipAngle(90)
