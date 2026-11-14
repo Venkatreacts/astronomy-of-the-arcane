@@ -38,7 +38,7 @@ Interfaces everyone codes against (do not change without telling the team):
 | Now | Team agrees the idea in its own words; README filled | All | README "Project Overview" written by the team |
 | Now | Earthdata Login works; GES DISC app authorized; Aaruush participant form filled | All | Everyone can log in |
 | Now | Start slow data jobs: `python backend/data/harmony_jobs.py`, `python backend/data/appeears_job.py`, `python backend/data/fetch_grace.py` | Dhruva | Jobs submitted |
-| Now-13:00 | `pytest backend/tests` green; run `python -m trendlab.validate` and save numbers | Antik | Validation table in `docs/validation.md` |
+| Now-13:00 | `pytest backend/tests` green (done: 10 tests); validation numbers in `docs/validation.md` (done) | Antik | Re-run after any engine change |
 | Now-13:00 | `web/` shows a live Chennai series from the API | Venkatanathan | Chart on screen with real NASA POWER data |
 | 13:00-17:00 | Case 1 (NO2 India vs China) end to end; Noise Trap button on a small map | All | Click-through works |
 | 17:00-24:00 (remote) | Cases 2-3; years-to-detect card; intake; deploy v1 | All | Live URL by midnight |
@@ -72,5 +72,6 @@ Project page order (same as the 2025 winners): Summary, Demo link, Project link,
 ## 5. Facts for Q&A (verified in the papers)
 - Wilks (2016, BAMS): of 281 *Journal of Climate* papers (first half of 2014), 97 showed significance maps; only 3 (1.1%) considered multiple testing. FDR rule: largest p(i) with p(i) <= alpha_FDR * i/N; for correlated maps use alpha_FDR = 2 * alpha_global (0.10).
 - Weatherhead et al. (1998; restated 2000, eq. 2): n* = [((2+z)/|w0|) * sigma_N * sqrt((1+phi)/(1-phi))]^(2/3) years. 2 = 50% chance of detection, 3.3 = 90%.
-- Hamed & Rao (1998): Mann-Kendall variance correction for autocorrelation.
+- Honest test = Mann-Kendall after pre-whitening (Kulkarni & von Storch 1995). We tested 6 corrections; only this one kept false alarms near 5% (see `docs/validation.md`). Hamed & Rao (1998) gave 10-15%.
+- Our proof numbers: on noise with autocorrelation 0.6 the plain test flags 32% of series, ours 3.8%; on a noise map, 15.6% of pixels vs 0%.
 - Critique to raise ourselves: Schutte et al. 2026 (EGU preprint) on global FDR with spatially coherent signals.
