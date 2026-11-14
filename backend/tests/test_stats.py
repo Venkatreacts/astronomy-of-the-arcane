@@ -28,6 +28,22 @@ def test_sen_slope_recovers_trend_per_year():
     assert res["significant"] and res["direction"] == "rising"
 
 
+def test_slope_with_missing_months_keeps_real_positions():
+    # Audit #1: with 30% of months missing the old code gave 0.167 per year for a true 0.12.
+    rng = np.random.default_rng(0)
+    n = 360
+    x = 0.01 * np.arange(n) + rng.normal(0, 0.3, n)  # 0.12 per year
+    x[rng.random(n) < 0.3] = np.nan
+    assert trend_test(x, "honest")["slope_per_year"] == pytest.approx(0.12, rel=0.05)
+
+
+def test_slope_with_a_long_gap():
+    rng = np.random.default_rng(1)
+    x = 0.01 * np.arange(300) + rng.normal(0, 0.3, 300)
+    x[120:156] = np.nan  # a 36-month hole, like GRACE
+    assert trend_test(x)["slope_per_year"] == pytest.approx(0.12, rel=0.05)
+
+
 def test_trend_test_needs_enough_data():
     with pytest.raises(ValueError):
         trend_test(np.arange(10.0))

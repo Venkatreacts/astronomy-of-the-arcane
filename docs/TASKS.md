@@ -14,7 +14,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 
 ## P0: must be done before any real-data case goes on screen
 
-- [ ] **Part 2. Fix the rate of change when months are missing** (Audit #1). `backend/trendlab/stats.py:58,70`.
+- [x] **Part 2. Fix the rate of change when months are missing** (Audit #1). `backend/trendlab/stats.py:58,70`.
   Use `scipy.stats.theilslopes(x[ok], np.arange(x.size)[ok])` so each value keeps its real month. It returns the slope and its low and high bounds in one call.
   Done when: a new test with 30% of months removed from a 0.12-per-year series gives a slope within 5% of 0.12 (today it gives 0.167).
 - [ ] **Part 2. Add the confidence interval to the Analysis JSON.** The challenge asks for it. New field `slope_ci_per_year: [low, high]` from the same `theilslopes` call. Nothing existing changes.

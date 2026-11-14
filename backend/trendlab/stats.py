@@ -17,7 +17,7 @@ from typing import Sequence
 import numpy as np
 import pymannkendall as mk
 from scipy.ndimage import gaussian_filter
-from scipy.stats import norm
+from scipy.stats import norm, theilslopes
 
 # "honest" = Mann-Kendall after pre-whitening (removing lag-1 autocorrelation first;
 # Kulkarni & von Storch 1995). In our simulations it kept false alarms near 5% for
@@ -51,23 +51,26 @@ def deseasonalize(values: Sequence[float], months: Sequence[int]) -> np.ndarray:
 def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0.05) -> dict:
     """Mann-Kendall trend test on an evenly spaced monthly series.
 
-    Returns the Sen's slope per year (input is monthly, so per-step slope x 12),
-    the p-value, and whether the trend is significant at `alpha`.
+    Returns the Sen's slope per year (input is monthly, so per-month slope x 12),
+    the p-value, and whether the trend is significant at `alpha`. Missing months (NaN)
+    keep their real position in time, so gaps do not inflate the rate.
     """
-    x = _as_array(values)
-    x = x[np.isfinite(x)]
+    x_all = _as_array(values)
+    ok = np.isfinite(x_all)
+    t = np.arange(x_all.size)[ok]
+    x = x_all[ok]
     if x.size < 24:
         raise ValueError("Need at least 24 monthly values for a trend test.")
     if np.nanstd(x) == 0:
         return {"method": method, "n": int(x.size), "slope_per_year": 0.0, "p": 1.0,
                 "z": 0.0, "significant": False, "direction": "no trend"}
-    # Hamed-Rao can produce a negative corrected variance on short or odd series;
-    # the library then returns NaN, which we treat below as "not significant".
+    # The library can return NaN on odd series; we treat that as "not significant".
     with np.errstate(invalid="ignore", divide="ignore"):
         res = METHODS[method](x, alpha=alpha)
-    # Rate of change always comes from Sen's slope on the series itself, because
-    # pre-whitening shrinks the slope of the transformed series.
-    slope_year = float(mk.sens_slope(x).slope) * 12.0
+    # Rate of change comes from Sen's slope on the series itself (pre-whitening shrinks the
+    # slope of the transformed series), using each value's real month (audit #1).
+    slope, _, _, _ = theilslopes(x, t)
+    slope_year = float(slope) * 12.0
     p = float(res.p) if np.isfinite(res.p) else 1.0
     significant = p < alpha
     direction = "no clear trend"
