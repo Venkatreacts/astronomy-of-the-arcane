@@ -61,7 +61,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
   Done: Case files draws both masks with `MaskMap` when a case has `slope` (checked with a temporary synthetic map case; no real GRACE case exists yet). Fields match `build_grace`.
 - [ ] **Part 1. Case 2 data, MERRA-2 levels.** `python data/harmony_jobs.py merra2_temp_levels`, then `python data/build_cases.py fingerprint`. If the job is not done by 15:00, use Giovanni area-averaged CSVs for two levels (850 hPa and 50 hPa) and build the case from those.
 - [ ] **Part 5. Smaller chart library** (Audit #10).
+  Not done (Venkat): `plotly.js-cartesian-dist-min` has no `scattergeo`, which the P1 map picker needs, so the suggested swap would break the map. Options: keep the full bundle (1.5 MB gzipped), or lazy-load the map. Left as is.
 - [ ] Clean-ups (Audit #11 to #14).
+  Status (Venkat): #11 done (template `web/README.md` deleted), #12 done (the misleading Hamed-Rao comment went with the audit #1 fix), #13 done (empty icon link, no more 404). #14 is in `backend/data/appeears_job.py`, a Part 1 file, so left for the data session. Box not ticked until #14 is done.
 
 ## Do not change without telling the team
 - The Series, Analysis and Map JSON shapes in `PLAN.md` section 1. Adding a field is fine. Renaming or removing one breaks the cached case files.
