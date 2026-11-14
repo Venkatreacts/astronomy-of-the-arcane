@@ -40,6 +40,7 @@ npm run dev                      # http://localhost:5173 (calls the API on port 
 | Command (from `backend/`) | What it writes |
 |---|---|
 | `python scripts/build_atlas.py --download` then `python scripts/build_atlas.py` | Global Trend Atlas: `atlas/*.json` and one `cells/*.json` per 5° sample point |
+| `python scripts/build_years.py` | Yearly anomalies for the globe's time playback: `atlas/years_*.json` (from the point files) |
 | `python scripts/build_scans.py` | The nine Region Scanner presets in `scans/` |
 | `python scripts/build_lab.py` | The simulation lab (240 settings x 10 maps) in `lab/lab.json` |
 | `python scripts/build_static.py` | Case files and the original noise maps |

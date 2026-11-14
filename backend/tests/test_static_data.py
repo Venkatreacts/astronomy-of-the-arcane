@@ -96,3 +96,20 @@ def test_lab_covers_its_grid_and_rates_are_valid():
                 if s:
                     assert 0 <= s["lo"] <= s["mean"] <= s["hi"] <= 1
             assert (m["power"] is None) == (e["params"]["trend"] == 0)
+
+
+@pytest.mark.parametrize("var", VARS)
+def test_year_playback_matches_the_point_files(var):
+    d = load("atlas", f"years_{var}.json")
+    atlas = load("atlas", f"{var}.json")
+    assert len(d["cells"]) == atlas["n_cells"]
+    n_years = d["years"][1] - d["years"][0] + 1
+    for lat, lon, ys in random.Random(1).sample(d["cells"], 20):
+        v = load("cells", f"{lat:+.1f}_{lon:+.1f}.json")["vars"][var]
+        assert len(ys) == n_years == v["months"] // 12
+        for y, got in enumerate(ys):
+            months = [v["values"][y * 12 + m] - v["clim"][m] for m in range(12) if v["values"][y * 12 + m] is not None]
+            if len(months) < d["min_months"]:
+                assert got is None
+            else:
+                assert got == pytest.approx(sum(months) / len(months), rel=5e-3, abs=1e-6)
