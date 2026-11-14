@@ -57,7 +57,8 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 
 ## P2: only if P0 and P1 are done
 
-- [ ] **Part 5. Draw map cases in Case files** (Audit #5), so the GRACE case is not an empty page. Reuse `MaskMap`. If GRACE is cut, delete `build_grace` and `fetch_grace.py` instead.
+- [x] **Part 5. Draw map cases in Case files** (Audit #5), so the GRACE case is not an empty page. Reuse `MaskMap`. If GRACE is cut, delete `build_grace` and `fetch_grace.py` instead.
+  Done: Case files draws both masks with `MaskMap` when a case has `slope` (checked with a temporary synthetic map case; no real GRACE case exists yet). Fields match `build_grace`.
 - [ ] **Part 1. Case 2 data, MERRA-2 levels.** `python data/harmony_jobs.py merra2_temp_levels`, then `python data/build_cases.py fingerprint`. If the job is not done by 15:00, use Giovanni area-averaged CSVs for two levels (850 hPa and 50 hPa) and build the case from those.
 - [ ] **Part 5. Smaller chart library** (Audit #10).
 - [ ] Clean-ups (Audit #11 to #14).
