@@ -236,7 +236,7 @@ export default function ScanView() {
             ))}
             <button className="primary" type="submit" disabled={busy}>{busy ? 'Scanning…' : 'Scan this box'}</button>
           </form>
-          <p className="small">Box sides 2 to 5 degrees (NASA POWER limit). A new box needs the backend and takes about 30 seconds.</p>
+          <p className="small">Box sides 2 to 5 degrees (NASA POWER limit). A new box needs the live server and takes about a minute; the listed regions open instantly.</p>
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div></div>

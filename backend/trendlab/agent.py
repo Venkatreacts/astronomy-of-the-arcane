@@ -1,12 +1,15 @@
-"""AI Detective: Claude answers a question by calling our tested analysis tools.
+"""AI Detective: an AI model (Gemini or Claude) answers a question by calling our tested analysis tools.
 
 Design (docs/design/region-scanner.md):
-- Claude never writes code; it can only call the fixed tools below.
+- The model never writes code; it can only call the fixed tools below.
 - At most MAX_TOOL_CALLS tool calls per question; every call and result is returned as an evidence trail.
 - The system prompt requires every number in the answer to come from a tool result, and check_numbers()
   verifies that afterwards: any number in the answer that no tool returned is listed as unverified.
 - Most tools read the pre-computed offline data (atlas points, regional scans, simulation lab), so the
-  detective works without NASA access; analyze_point and new scan boxes fetch live data.
+  detective works without NASA access; only analyze_point fetches live data.
+- Region scans are limited to the nine pre-computed regions: a new box takes about a minute, too slow and
+  too costly for a public demo.
+- docs/detective-notes.md (the team's checked notes on the methods) is added to the system prompt.
 """
 
 from __future__ import annotations
@@ -19,28 +22,34 @@ import re
 from typing import Any, Callable
 
 MODEL = "claude-opus-5-5"
+GEMINI_MODEL = "gemini-3.8-flash"  # override with env GEMINI_MODEL
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_TOOL_CALLS = 8
 MAX_TURNS = 12
+GEMINI_TURNS = 6  # model calls per question on the Gemini path
 MAX_HISTORY = 4  # earlier question/answer pairs sent with a follow-up
+NOTES = pathlib.Path(__file__).resolve().parents[2] / "docs" / "detective-notes.md"
 
 SYSTEM = """You are the Noise Trap Detective, helping students and the public investigate trends in NASA Earth data.
 
 Rules:
-- Only state numbers that appear in a tool result in this conversation. Never estimate or recall numbers yourself.
-  Every number in your answer is checked against the tool results and flagged if it cannot be traced.
+- Only state numbers that appear in a tool result in this conversation or in the team's notes below. Never estimate
+  or recall numbers yourself. Every number in your answer is checked against these and flagged if it cannot be traced.
 - There are three stages of evidence. Usual test: Mann-Kendall p < 0.05. Stickiness removed: the same test after
-  lag-1 pre-whitening, p < 0.05. Honest: stickiness removed plus false-discovery control across many places at once
-  (maps and the atlas only). A region "cluster" is a separate test: a patch of change larger than on time-shuffled
-  maps. Say which stage or test a claim rests on, and explain disagreements (usually month-to-month stickiness).
+  lag-1 pre-whitening, p < 0.05. Honest verdict: for one place it is the stickiness-removed test (no multiple-testing
+  correction); for a map, a region or the atlas it is stickiness removed plus false-discovery control across all tested
+  points (at most 10% of flags expected false). Use these three names.
+  A region "cluster" is a separate test: a patch of change larger than on time-shuffled maps. Say which stage or test a
+  claim rests on, and explain disagreements (usually month-to-month stickiness).
 - Never claim what caused a trend. You may say what changes together and suggest what a scientist might check next.
 - Say when the data cannot answer the question (wrong variable, box too large, not enough years), and what would help.
 - Data comes from NASA POWER (MERRA-2-based reanalysis). Atlas values are point samples every 5 degrees, not area
   averages; regional scans use the roughly 0.5-degree grid. Mention the relevant limit once.
-- Prefer the offline tools (atlas_point, atlas_overview, list_regions, compare_regions, simulation_lab) when they can
-  answer; analyze_point and new scan boxes fetch live data and are slower.
+- Prefer the offline tools (atlas_point, atlas_overview, list_regions, scan_region, compare_regions, simulation_lab)
+  when they can answer; analyze_point fetches live data and is slower.
 - Structure: a short answer first (2-4 sentences); then "Evidence:" with up to 6 bullets, each naming the tool it came
   from; then "Uncertainty:" in one or two sentences; then one "What to check next" line.
-- Use at most 8 tool calls. Regional scans need boxes with sides of 2 to 5 degrees."""
+- Use at most 8 tool calls. Regional scans cover only the regions from list_regions."""
 
 
 def _tools_schema() -> list[dict]:
@@ -71,9 +80,9 @@ def _tools_schema() -> list[dict]:
          "description": "Offline. The pre-computed regional scans (id, name, box). Use their ids with compare_regions.",
          "input_schema": obj({}, [])},
         {"name": "scan_region", "strict": True,
-         "description": ("Scan a box (sides 2-5 degrees) across 5 NASA variables: tests, pixels flagged at each stage, "
-                         "clusters that beat 199 time shuffles, compound patterns, and k-means trend regimes. A box equal "
-                         "to a listed region loads instantly; a new box takes about 30 seconds."),
+         "description": ("Offline. A pre-computed regional scan across 5 NASA variables: tests, pixels flagged at each "
+                         "stage, clusters that beat 199 time shuffles, compound patterns, and k-means trend regimes. Only "
+                         "the regions from list_regions exist; a box is matched to the listed region it overlaps most."),
          "input_schema": obj({"lat_min": num, "lat_max": num, "lon_min": num, "lon_max": num},
                              ["lat_min", "lat_max", "lon_min", "lon_max"])},
         {"name": "compare_regions", "strict": True,
@@ -93,9 +102,15 @@ def _tools_schema() -> list[dict]:
     ]
 
 
+def system_prompt() -> str:
+    """SYSTEM plus the team's checked notes on the methods, so explanations build on our own write-up."""
+    notes = NOTES.read_text(encoding="utf-8") if NOTES.is_file() else ""
+    return SYSTEM + ("\n\nTeam notes (checked; numbers here may be quoted):\n" + notes if notes else "")
+
+
 def default_executor() -> Callable[[str, dict], Any]:
     """Real tool implementations, imported lazily so tests can run without network access."""
-    from api.scan_routes import run_scan
+    from api.scan_routes import snap_to_preset
     from fetch_power import PARAMS, get_monthly_point  # backend/data on sys.path via api.main
     from trendlab import analyze_series, noise_trap
     from trendlab.scan import SCAN_VARS
@@ -166,14 +181,16 @@ def default_executor() -> Callable[[str, dict], Any]:
         if name == "list_regions":
             return list(presets.values())
         if name == "scan_region":
-            box = [float(args[k]) for k in ("lat_min", "lat_max", "lon_min", "lon_max")]
-            hit = next((p for p in presets.values() if [float(x) for x in p["bbox"]] == box), None)
-            r = read("scans", f"{hit['id']}.json") if hit else run_scan(tuple(box))
+            hit = snap_to_preset([float(args[k]) for k in ("lat_min", "lat_max", "lon_min", "lon_max")])
+            if hit is None:
+                raise ValueError("No pre-computed region overlaps this box. Use list_regions for the ones available.")
+            r = read("scans", f"{hit['id']}.json")
             clusters = [{"variable": info["name"], **{k: c[k] for k in ("direction", "size", "p", "center_lat",
                                                                          "center_lon", "mean_rate_per_decade")},
                          "units": info["units"]}
                         for info in r["variables"].values() for c in info["clusters"] if c["significant"]]
-            return {"summary": r["summary"], "significant_clusters": clusters,
+            return {"region": hit["name"], "box": hit["bbox"], "summary": r["summary"],
+                    "significant_clusters": clusters,
                     "compound_patterns": [c["text"] for c in r["compounds"][:5]],
                     "regimes": [{"label": g["label"], "pixels": g["pixels"]} for g in r["regimes"]["regimes"]],
                     "findings": r["findings"], "caveats": r["caveats"]}
@@ -282,7 +299,7 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
     Returns {answer, trace, checks, stop_reason, model}."""
     if client is None:
         import anthropic
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(timeout=40, max_retries=1)
     executor = executor or default_executor()
     messages: list[dict] = []
     for turn in (history or [])[-MAX_HISTORY:]:
@@ -296,7 +313,7 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
         response = client.beta.messages.create(
             model=MODEL,
             max_tokens=16000,
-            system=SYSTEM,
+            system=system_prompt(),
             tools=_tools_schema(),
             messages=messages,
             output_config={"effort": "medium"},
@@ -335,7 +352,79 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
         answer = "The answer was cut off. Try a narrower question."
     else:
         answer = "\n".join(b.text for b in response.content if b.type == "text").strip()
-    return {"answer": answer, "checks": check_numbers(answer, trace, question),
+    return _finish(answer, trace, question, response.stop_reason, getattr(response, "model", MODEL))
+
+
+def _finish(answer: str, trace: list[dict], question: str, stop: str, model: str) -> dict:
+    """Shared result shape for both model paths, with every number checked against the tools and the notes."""
+    notes = NOTES.read_text(encoding="utf-8") if NOTES.is_file() else ""
+    return {"answer": answer, "checks": check_numbers(answer, trace, question + "\n" + notes),
             "trace": [{**t, "result": _jsonable(t["result"]),
                        "result_preview": _summarise(t["result"])} for t in trace],
-            "stop_reason": response.stop_reason, "model": getattr(response, "model", MODEL)}
+            "stop_reason": stop, "model": model}
+
+
+def _gemini_tools() -> list[dict]:
+    """The same tools as Gemini function declarations (it rejects additionalProperties and empty objects)."""
+    out = []
+    for t in _tools_schema():
+        fn = {"name": t["name"], "description": t["description"]}
+        if t["input_schema"]["properties"]:
+            fn["parameters"] = {k: v for k, v in t["input_schema"].items() if k != "additionalProperties"}
+        out.append(fn)
+    return [{"function_declarations": out}]
+
+
+def ask_gemini(question: str, post=None, executor: Callable[[str, dict], Any] | None = None,
+               history: list[dict] | None = None) -> dict:
+    """Same loop and result shape as ask(), on the Gemini API. Needs GEMINI_API_KEY."""
+    if post is None:
+        import requests
+        post = requests.post
+    executor = executor or default_executor()
+    model = os.environ.get("GEMINI_MODEL", GEMINI_MODEL)
+    contents: list[dict] = []
+    for turn in (history or [])[-MAX_HISTORY:]:
+        contents += [{"role": "user", "parts": [{"text": turn["question"]}]},
+                     {"role": "model", "parts": [{"text": turn["answer"]}]}]
+    contents.append({"role": "user", "parts": [{"text": question}]})
+    trace: list[dict] = []
+    calls = 0
+    answer, stop = "", "max_turns"
+
+    for _ in range(GEMINI_TURNS):
+        r = post(GEMINI_URL.format(model=model), timeout=40,
+                 headers={"x-goog-api-key": os.environ.get("GEMINI_API_KEY", "")},
+                 json={"system_instruction": {"parts": [{"text": system_prompt()}]}, "contents": contents,
+                       "tools": _gemini_tools(), "generationConfig": {"maxOutputTokens": 4000, "temperature": 0.2}})
+        r.raise_for_status()
+        candidates = r.json().get("candidates") or [{}]
+        content = candidates[0].get("content") or {"role": "model", "parts": []}
+        stop = candidates[0].get("finishReason", "no_response")
+        parts = content.get("parts", [])
+        answer = "\n".join(p["text"] for p in parts if "text" in p and not p.get("thought")).strip()
+        fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+        if not fn_calls:
+            break
+        contents.append(content)  # sent back unchanged: Gemini needs its own thought signatures returned
+        results = []
+        for fc in fn_calls:
+            calls += 1
+            args = dict(fc.get("args") or {})
+            if calls > MAX_TOOL_CALLS:
+                out, ok = {"error": "Tool budget used up. Answer now with the evidence you have."}, False
+            else:
+                try:
+                    out, ok = executor(fc["name"], args), True
+                except Exception as exc:  # report tool failures to the model instead of crashing
+                    out, ok = {"error": str(exc)}, False
+            trace.append({"tool": fc["name"], "input": args, "ok": ok, "result": out})
+            reply = {"name": fc["name"], "response": {"result": _jsonable(out)}}
+            if "id" in fc:
+                reply["id"] = fc["id"]
+            results.append({"functionResponse": reply})
+        contents.append({"role": "user", "parts": results})
+
+    if not answer:
+        answer = "The detective could not finish this question. Try a narrower one."
+    return _finish(answer, trace, question, stop, model)

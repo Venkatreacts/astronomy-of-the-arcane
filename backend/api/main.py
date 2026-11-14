@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import pathlib
 import sys
 from functools import lru_cache
@@ -23,21 +24,16 @@ sys.path.insert(0, str(BACKEND / "data"))
 
 from fetch_power import PARAMS, get_monthly_point  # noqa: E402
 from trendlab import analyze_series  # noqa: E402
-from trendlab.scan import SCAN_VARS  # noqa: E402
-
-# The globe shows five variables; the point API must offer all five, or a click on a soil-wetness or
-# wind square would open a different variable. Registered here so backend/data (the data session's)
-# stays untouched; get_monthly_point only needs the id, name and units.
-for _id, (_name, _units, *_rest) in SCAN_VARS.items():
-    PARAMS.setdefault(_id, (_name, "index (0-1)" if _units == "0-1" else _units))
 
 CASES = BACKEND / "data" / "cases"
 
-app = FastAPI(title="Noise Trap API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
-
 from api.scan_routes import router as scan_router  # noqa: E402
 from api.agent_routes import router as agent_router  # noqa: E402
+
+app = FastAPI(title="Noise Trap API", version="0.1.0")
+# Browsers may call the API only from our own web app. ALLOWED_ORIGINS is a comma-separated list (the Vercel URL).
+ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
 app.include_router(scan_router)
 app.include_router(agent_router)
 
@@ -66,7 +62,7 @@ def health():
 
 @app.get("/api/params")
 def params():
-    # A plain one-line definition is the optional third entry of each PARAMS item (added by the data session).
+    # The third entry of each PARAMS item is a one-line plain definition (older two-entry items still work).
     return [{"id": k, "name": v[0], "units": v[1], "definition": v[2] if len(v) > 2 else None}
             for k, v in PARAMS.items()]
 
@@ -123,3 +119,4 @@ def noise(phi: float = Query(0.5, ge=0.0, le=0.9), trend: float = Query(0.0)):
     if not path.is_file():
         raise HTTPException(404, "Noise maps not built yet: run python scripts/build_static.py")
     return json.loads(path.read_text(encoding="utf-8"))
+

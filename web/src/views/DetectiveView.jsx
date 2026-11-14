@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { download } from '../lib/format'
 
@@ -62,7 +62,10 @@ function Turn({ t }) {
           ))}
         </ol>
       </details>
-      <p className="source">Model: {t.model} · an AI summary of tool results; the evidence trail is the record.</p>
+      <p className="source">
+        {t.saved_on ? `Saved answer from ${t.saved_on} · ` : ''}Model: {t.model} · an AI summary of tool results; the
+        evidence trail is the record.
+      </p>
     </article>
   )
 }
@@ -72,22 +75,37 @@ export default function DetectiveView() {
   const [turns, setTurns] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [passcode, setPasscode] = useState('') // kept in page memory only
+  // answers saved ahead of time (scripts/build_detective.py): they open instantly, offline and with no AI call
+  const [saved, setSaved] = useState({})
+  useEffect(() => {
+    api.savedAnswers().then((list) => setSaved(Object.fromEntries(list.map((x) => [x.question, x.id])))).catch(() => {})
+  }, [])
 
-  async function ask(q = question, followUp = turns.length > 0) {
+  async function run(load, q, followUp) {
     setBusy(true)
     setError('')
     try {
-      const history = followUp ? turns.slice(-4).map((t) => ({ question: t.question, answer: t.answer })) : []
-      const res = await api.ask(q, history)
+      const res = await load()
       setTurns((prev) => [...(followUp ? prev : []), { question: q, ...res }])
       setQuestion('')
     } catch (e) {
-      setError(/fetch|NetworkError/i.test(e.message)
-        ? 'The detective needs the backend running (and an ANTHROPIC_API_KEY in backend/.env). Everything else on this page works offline.'
+      setError(/fetch|NetworkError|reach/i.test(e.message)
+        ? 'Could not reach the live server. The saved answers and everything else on this page still work.'
         : e.message)
     } finally {
       setBusy(false)
     }
+  }
+
+  function ask(q = question, followUp = turns.length > 0) {
+    const history = followUp ? turns.slice(-4).map((t) => ({ question: t.question, answer: t.answer })) : []
+    run(() => api.ask(q, history, passcode), q, followUp)
+  }
+
+  function example(q) {
+    if (saved[q]) run(() => api.savedAnswer(saved[q]), q, false)
+    else setQuestion(q) // not saved yet: a live question, which needs the passcode
   }
 
   return (
@@ -95,12 +113,12 @@ export default function DetectiveView() {
       <h2>Ask the detective</h2>
       <p className="lead">
         Ask in plain English. The detective runs our tested tools on NASA data (never its own code), may only quote
-        numbers those tools returned, and every number in its answer is checked against them. Every step is shown.
+        numbers those tools or our checked notes gave it, and every number in its answer is checked. Every step is shown.
       </p>
       {turns.length === 0 && (
         <div className="controls wrap">
           {EXAMPLES.map((ex) => (
-            <button key={ex} className="chip" onClick={() => { setQuestion(ex); ask(ex, false) }} disabled={busy}>{ex}</button>
+            <button key={ex} className={`chip ${saved[ex] ? 'on' : ''}`} onClick={() => example(ex)} disabled={busy}>{ex}</button>
           ))}
         </div>
       )}
@@ -110,14 +128,22 @@ export default function DetectiveView() {
           {turns.length ? 'Follow-up question' : 'Your question'}
           <textarea rows={2} maxLength={500} value={question} onChange={(e) => setQuestion(e.target.value)} />
         </label>
+        <label className="pass">
+          Team passcode
+          <input type="password" autoComplete="off" value={passcode} onChange={(e) => setPasscode(e.target.value)} />
+        </label>
         <div className="exports">
-          <button className="primary" type="submit" disabled={busy || question.trim().length < 5}>
+          <button className="primary" type="submit" disabled={busy || question.trim().length < 5 || !passcode}>
             {busy ? 'Investigating (can take a minute)…' : turns.length ? 'Ask a follow-up' : 'Ask the detective'}
           </button>
           {turns.length > 0 && <button type="button" disabled={busy} onClick={() => { setTurns([]); setQuestion(EXAMPLES[0]) }}>New investigation</button>}
           {turns.length > 0 && <button type="button" onClick={() => download('noise-trap-investigation.md', report(turns), 'text/markdown')}>Download report</button>}
         </div>
       </form>
+      <p className="small">
+        {Object.keys(saved).length > 0 && 'Highlighted questions were answered ahead of time and open instantly. '}
+        A new question runs a live AI model, so it needs the team passcode.
+      </p>
       {error && <p className="error" role="alert">{error}</p>}
     </section>
   )

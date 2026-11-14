@@ -21,9 +21,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
   That interval ignores autocorrelation, so it is too narrow for sticky series. Widen its half-width by `sqrt((1 + phi) / (1 - phi))` with `phi` from `noise_params`, and say on the methods page that this is an approximation.
   Done when: the field is in `/api/point` and the test above also checks that the interval contains 0.12.
   Note (Venkat): one series cannot pass that check reliably: a 95% interval misses the true value 5% of the time, and seed 0 of the test above does miss it (0.110 to 0.120). The test checks coverage instead: 88+ of 100 series must contain 0.12 (measured 95% over 300).
-- [ ] **Part 1. Keep empty months as `null`** (Audit #1). `backend/data/build_cases.py:54-62`, `monthly_from_daily`. Write every month from first to last.
+- [x] **Part 1. Keep empty months as `null`** (Audit #1). `backend/data/build_cases.py:54-62`, `monthly_from_daily`. Write every month from first to last.
   Done when: a test feeds daily rows with one month missing and gets that month back as `None`.
-- [ ] **Part 1. Store NO2 in units of 10^15 molecules/cm2** (Audit #2). `build_no2`, `backend/data/build_cases.py:90-99`.
+- [x] **Part 1. Store NO2 in units of 10^15 molecules/cm2** (Audit #2). `build_no2`, `backend/data/build_cases.py:90-99`.
   Done when: the NO2 verdict card shows a rate like `+0.12`, not a 15-digit number.
 - [x] **Parts 4 + 5. Pre-compute the Noise Trap maps** (Audit #3). A script writes the ten maps (phi 0.0 to 0.9, 20 x 20, seed 0) as JSON under `web/public/data/noise/`. The web app loads those files instead of calling `/api/noise-trap`.
   Done when: clicking "Run on pure noise" answers in under 1 s with the API stopped.
@@ -38,7 +38,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 
 ## P1: needed to meet the challenge fully
 
-- [ ] **Parts 1 + 5. One-line plain definition for every variable.** Add a third entry to each item in `PARAMS` (`backend/data/fetch_power.py:14-20`), return it from `/api/params`, show it under the variable dropdown.
+- [x] **Parts 1 + 5. One-line plain definition for every variable.** Add a third entry to each item in `PARAMS` (`backend/data/fetch_power.py:14-20`), return it from `/api/params`, show it under the variable dropdown.
   Example: "Relative humidity: how much water vapour the air holds, as a percent of the most it could hold."
   Status (Venkat): Parts 4 + 5 half done: `/api/params` returns `definition` (the optional third entry of each `PARAMS` item, `None` if absent) and the page shows it under the dropdown. Not ticked: waiting on the Part 1 half, the text itself in `fetch_power.py`. Nothing else is needed after that.
 - [x] **Part 5. Pick a place on a map.** Today the place is four Indian cities or typed latitude and longitude. Add a click-to-pick world map. Plotly's `scattergeo` can do it with no new library, but check it is in the Plotly bundle we ship.
@@ -53,7 +53,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [x] **Part 5. Disable the city buttons while a fetch runs** (Audit #8). `disabled={busy}`.
 - [x] **Part 3. Three small tests** (Audit #7): the POWER parser, the Giovanni CSV parser, one `TestClient` call to a case file.
   Done: `backend/tests/test_api_and_parsers.py` (POWER parser, Giovanni CSV parser, `/api/cases/chennai` + path tricks). `monthly_from_daily` is deliberately not tested: the data session is changing it (empty months -> null).
-- [ ] **Part 1. Split the requirements file** (Audit #9). Note for the data session: the API tests need `httpx` (FastAPI's TestClient); put it in `requirements-dev.txt`. The Region Scanner and AI Detective added `scikit-learn` and `anthropic`, which the server needs. `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
+- [x] **Part 1. Split the requirements file** (Audit #9). Note for the data session: the API tests need `httpx` (FastAPI's TestClient); put it in `requirements-dev.txt`. The Region Scanner and AI Detective added `scikit-learn` and `anthropic`, which the server needs. `requirements.txt` for the server, `requirements-dev.txt` for data scripts and tests. Drop `h5netcdf` and `statsmodels`.
 
 ## P2: only if P0 and P1 are done
 

@@ -293,3 +293,12 @@ figcaption .how { display: block; font-size: 13px; color: var(--meta); margin-to
 .answers dd { margin: 4px 0 0; }
 .answers dd strong { font: 700 32px/1 var(--display); font-variant-numeric: tabular-nums; }
 .answers dd.q { font-size: 14px; color: var(--ink-2); }
+
+/* a chart's place while the chart code loads, so the page does not jump */
+.plot-wait { border: 1px solid var(--line); background: var(--ground-2); }
+.ask label.pass { max-width: 260px; margin-top: 12px; }
+/* finger-sized targets on touch screens */
+@media (pointer: coarse) {
+  .bar nav a { padding: 12px 0; }
+  .vars button, .chip, .switch button { min-height: 44px; }
+}

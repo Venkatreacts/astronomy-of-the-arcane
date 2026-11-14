@@ -213,7 +213,9 @@ export default function InvestigateView({ pick }) {
           <p className="small">
             {online === false
               ? 'Offline mode: places open the nearest pre-computed sample point (one every 5°). Start the backend for live NASA data at exact coordinates.'
-              : 'Click the map (snaps to 2.5°) or type coordinates. Live data comes from NASA POWER through our backend.'}
+              : online === null
+                ? 'Connecting to the live server. When it has been idle it can take about a minute to wake; globe points open right away.'
+                : 'Click the map (snaps to 2.5°) or type coordinates. Live data comes from NASA POWER through our backend.'}
           </p>
           {error && <p className="error" role="alert">{error}</p>}
           {note && <p className="note" role="status">{note}</p>}

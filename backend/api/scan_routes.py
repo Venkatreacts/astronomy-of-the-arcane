@@ -52,6 +52,18 @@ def _clean(o):
     return o
 
 
+def snap_to_preset(bbox) -> dict | None:
+    """The preset whose box overlaps `bbox` (lat_min, lat_max, lon_min, lon_max) the most, or None."""
+    a0, a1, o0, o1 = bbox
+    best, area = None, 0.0
+    for p in PRESETS:
+        b0, b1, q0, q1 = p["bbox"]
+        overlap = max(0.0, min(a1, b1) - max(a0, b0)) * max(0.0, min(o1, q1) - max(o0, q0))
+        if overlap > area:
+            best, area = p, overlap
+    return best
+
+
 def run_scan(bbox, perms: int = 199) -> dict:
     bbox = validate_bbox(bbox)
     variables = list(SCAN_VARS)
@@ -79,10 +91,9 @@ def presets():
 
 @router.get("")
 def scan(lat_min: float = Query(..., ge=-90, le=90), lat_max: float = Query(..., ge=-90, le=90),
-         lon_min: float = Query(..., ge=-180, le=180), lon_max: float = Query(..., ge=-180, le=180),
-         perms: int = Query(199, ge=19, le=499)):
+         lon_min: float = Query(..., ge=-180, le=180), lon_max: float = Query(..., ge=-180, le=180)):
     try:
-        return run_scan((lat_min, lat_max, lon_min, lon_max), perms)
+        return run_scan((lat_min, lat_max, lon_min, lon_max))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:  # NASA POWER outages, timeouts

@@ -62,11 +62,13 @@ def main(argv: list[str]) -> None:
         print("task_id:", r.json()["task_id"])
     elif cmd == "status":
         r = requests.get(f"{API}/status/{argv[1]}", headers=head, timeout=60)
+        r.raise_for_status()
         print(json.dumps(r.json(), indent=2)[:1500])
     elif cmd == "download":
         RAW.mkdir(parents=True, exist_ok=True)
-        bundle = requests.get(f"{API}/bundle/{argv[1]}", headers=head, timeout=60).json()
-        for f in bundle["files"]:
+        r = requests.get(f"{API}/bundle/{argv[1]}", headers=head, timeout=60)
+        r.raise_for_status()  # a task that is not finished has no bundle yet
+        for f in r.json()["files"]:
             name = pathlib.Path(f["file_name"]).name
             data = requests.get(f"{API}/bundle/{argv[1]}/{f['file_id']}", headers=head, timeout=300)
             data.raise_for_status()
