@@ -13,8 +13,14 @@ load_env_file(pathlib.Path(__file__).resolve().parents[1] / ".env")
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 
+class Turn(BaseModel):
+    question: str = Field(..., max_length=500)
+    answer: str = Field(..., max_length=6000)
+
+
 class Question(BaseModel):
     question: str = Field(..., min_length=5, max_length=500)
+    history: list[Turn] = Field(default_factory=list, max_length=4)  # earlier turns, for follow-up questions
 
 
 @router.post("")
@@ -23,7 +29,7 @@ def detective(q: Question):
 
     not_set_up = "AI Detective is not set up: add ANTHROPIC_API_KEY to backend/.env and restart the API."
     try:
-        return ask(q.question)
+        return ask(q.question, history=[t.model_dump() for t in q.history])
     except TypeError as exc:  # the SDK raises TypeError when no credential is configured at all
         if "authentication" in str(exc).lower():
             raise HTTPException(503, not_set_up) from exc
