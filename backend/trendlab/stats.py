@@ -15,17 +15,16 @@ import math
 from typing import Sequence
 
 import numpy as np
-import pymannkendall as mk
 from scipy.ndimage import gaussian_filter
 from scipy.stats import norm, theilslopes
+
+from .mk import lag1, mk_test, prewhiten
 
 # "honest" = Mann-Kendall after pre-whitening (removing lag-1 autocorrelation first;
 # Kulkarni & von Storch 1995). In our simulations it kept false alarms near 5% for
 # lag-1 autocorrelation 0 to 0.6, where the plain test reached 30% and Hamed-Rao 15%.
-METHODS = {
-    "naive": mk.original_test,
-    "honest": mk.pre_whitening_modification_test,
-}
+# Both run on the shared core in mk.py (tie-corrected, missing months kept in place).
+METHODS = ("naive", "honest")
 
 
 def _as_array(values: Sequence[float]) -> np.ndarray:
@@ -64,19 +63,20 @@ def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0
     if np.nanstd(x) == 0:
         return {"method": method, "n": int(x.size), "slope_per_year": 0.0, "slope_ci_per_year": [0.0, 0.0],
                 "p": 1.0, "z": 0.0, "significant": False, "direction": "no trend"}
-    # The library can return NaN on odd series; we treat that as "not significant".
-    with np.errstate(invalid="ignore", divide="ignore"):
-        res = METHODS[method](x, alpha=alpha)
+    if method not in METHODS:
+        raise ValueError(f"method must be one of {METHODS}")
+    res = mk_test(x_all if method == "naive" else prewhiten(x_all))
+    z, p_raw = float(res["z"][0]), float(res["p"][0])
     # Rate of change comes from Sen's slope on the series itself (pre-whitening shrinks the
     # slope of the transformed series), using each value's real month (audit #1).
     slope, _, lo, hi = theilslopes(x, t)
     # theilslopes' 95% interval assumes independent months; widen each half for "sticky"
     # series by sqrt((1 + phi) / (1 - phi)). An approximation (docs/validation.md section 6).
-    phi = float(np.clip(noise_params(x)["phi"], 0.0, 0.95))
+    phi = float(np.clip(noise_params(x_all)["phi"], 0.0, 0.95))  # real positions, not the gap-closed series
     widen = math.sqrt((1 + phi) / (1 - phi))
     ci = [float(slope - (slope - lo) * widen) * 12.0, float(slope + (hi - slope) * widen) * 12.0]
     slope_year = float(slope) * 12.0
-    p = float(res.p) if np.isfinite(res.p) else 1.0
+    p = p_raw if np.isfinite(p_raw) else 1.0
     significant = p < alpha
     direction = "no clear trend"
     if significant:
@@ -87,7 +87,8 @@ def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0
         "slope_per_year": slope_year,
         "slope_ci_per_year": ci,
         "p": p,
-        "z": float(res.z) if np.isfinite(res.z) else 0.0,
+        "z": z,
+        "phi_used_for_ci": phi,
         "significant": bool(significant),
         "direction": direction,
     }
@@ -95,16 +96,17 @@ def trend_test(values: Sequence[float], method: str = "honest", alpha: float = 0
 
 def noise_params(values: Sequence[float]) -> dict:
     """Month-to-month noise SD (sigma_N) and lag-1 autocorrelation (phi) of the
-    residuals after removing a straight-line trend."""
+    residuals after removing a straight-line trend. Missing months keep their real
+    position: the line is fitted on real month numbers and phi uses only consecutive
+    months that are both present."""
     x = _as_array(values)
-    x = x[np.isfinite(x)]
-    t = np.arange(x.size)
-    coef = np.polyfit(t, x, 1)
-    resid = x - np.polyval(coef, t)
-    sigma = float(np.std(resid, ddof=2))
-    r = resid - resid.mean()
-    denom = float(np.dot(r, r))
-    phi = float(np.dot(r[:-1], r[1:]) / denom) if denom > 0 else 0.0
+    t = np.arange(x.size, dtype=float)
+    ok = np.isfinite(x)
+    coef = np.polyfit(t[ok], x[ok], 1)
+    resid = np.full(x.size, np.nan)
+    resid[ok] = x[ok] - np.polyval(coef, t[ok])
+    sigma = float(np.std(resid[ok], ddof=2))
+    phi = float(lag1(resid)[0])
     return {"sigma_n": sigma, "phi": phi}
 
 

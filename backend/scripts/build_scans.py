@@ -6,10 +6,13 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 import time
 
+# one BLAS thread per process: parallel workers with many threads each ran out of memory
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 

@@ -13,13 +13,15 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import warnings
 from typing import Callable
 
 import numpy as np
 import requests
 from scipy import ndimage
-from scipy.stats import norm
+from scipy.stats import norm, theilslopes
 
+from . import mk as core
 from .stats import fdr_bh
 
 POWER_REGIONAL = "https://power.larc.nasa.gov/api/temporal/monthly/regional"
@@ -92,98 +94,103 @@ def fetch_power_region(param: str, bbox, start: int = 1981, end: int = 2025, cac
 
 # ---------------------------------------------------------------- statistics
 
+MAX_MISSING = 0.10   # a pixel is tested only if at most 10% of its months are missing
+ALPHA = 0.05         # per-test level for the usual and the pre-whitened test
+CLUSTER_THR = 1.96   # |z| that a pixel needs to join a cluster
+
+
 def monthly_anomalies(cube: np.ndarray, months: np.ndarray) -> np.ndarray:
     out = np.full_like(cube, np.nan)
-    for m in range(1, 13):
-        sel = months == m
-        if sel.any():
-            out[sel] = cube[sel] - np.nanmean(cube[sel], axis=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # all-missing pixels: mean of empty slice
+        for m in range(1, 13):
+            sel = months == m
+            if sel.any():
+                out[sel] = cube[sel] - np.nanmean(cube[sel], axis=0)
     return out
 
 
-def fill_short_gaps(anom: np.ndarray, max_missing: float = 0.1) -> tuple[np.ndarray, np.ndarray]:
-    """Columns (pixels) with <= 10% missing get gaps set to 0 (the normal value); others are invalid."""
-    missing = np.isnan(anom).mean(axis=0)
-    valid = missing <= max_missing
-    filled = np.where(np.isnan(anom), 0.0, anom)
-    return filled, valid
-
-
 def prewhiten(x: np.ndarray) -> np.ndarray:
-    """Lag-1 pre-whitening per column, matching pymannkendall: y_t = x_t - r1 * x_{t-1}."""
-    xc = x - x.mean(axis=0)
-    denom = (xc ** 2).sum(axis=0)
-    r1 = np.where(denom > 0, (xc[1:] * xc[:-1]).sum(axis=0) / np.where(denom > 0, denom, 1), 0.0)
-    return x[1:] - r1 * x[:-1]
+    """Lag-1 pre-whitening per column (shared core; missing months stay missing)."""
+    return core.prewhiten(x)
 
 
 def mk_z(y: np.ndarray) -> np.ndarray:
-    """Vectorized Mann-Kendall z for every column of y (time, pixels). No tie correction."""
-    n = y.shape[0]
-    s = np.zeros(y.shape[1])
-    for k in range(1, n):
-        s += np.sign(y[k:] - y[:-k]).sum(axis=0)
-    sd = np.sqrt(n * (n - 1) * (2 * n + 5) / 18.0)
-    return np.where(s > 0, (s - 1) / sd, np.where(s < 0, (s + 1) / sd, 0.0))
+    """Tie-corrected Mann-Kendall z for every column of y (time, pixels); NaN-aware."""
+    return core.mk_test(y)["z"]
 
 
-def mk_z_original(x: np.ndarray) -> np.ndarray:
-    """Plain Mann-Kendall z (no pre-whitening), for the 'usual method' count."""
-    return mk_z(x)
+def sen_rate_per_decade(x: np.ndarray) -> np.ndarray:
+    """Sen's slope per decade for each column, on real month positions (same estimator as the point test)."""
+    t = np.arange(x.shape[0], dtype=float)
+    out = np.full(x.shape[1], np.nan)
+    for j in range(x.shape[1]):
+        ok = np.isfinite(x[:, j])
+        if ok.sum() >= 24:
+            out[j] = theilslopes(x[ok, j], t[ok])[0] * 120.0
+    return out
 
 
-def ls_rate_per_decade(x: np.ndarray) -> np.ndarray:
-    """Least-squares slope per decade for each column of monthly data."""
-    t = np.arange(x.shape[0]) / 120.0
-    tc = t - t.mean()
-    return (tc[:, None] * (x - x.mean(axis=0))).sum(axis=0) / (tc ** 2).sum()
-
-
-def find_clusters(zmap: np.ndarray, valid: np.ndarray, thr: float = 1.96) -> list[dict]:
+def find_clusters(zmap: np.ndarray, valid: np.ndarray, thr: float = CLUSTER_THR) -> list[dict]:
     """Same-sign 8-connected clusters of |z| > thr. Returns masks with mass = sum |z|."""
     found = []
+    z = np.where(np.isfinite(zmap), zmap, 0.0)
     for sign in (1, -1):
-        hot = valid & (sign * zmap > thr)
+        hot = valid & (sign * z > thr)
         labels, n = ndimage.label(hot, structure=EIGHT_NEIGHBOURS)
         for k in range(1, n + 1):
             mask = labels == k
             found.append({"sign": sign, "mask": mask, "size": int(mask.sum()),
-                          "mass": float(np.abs(zmap[mask]).sum())})
+                          "mass": float(np.abs(z[mask]).sum())})
     return found
 
 
-def max_cluster_mass(zmap: np.ndarray, valid: np.ndarray, thr: float = 1.96) -> float:
-    cl = find_clusters(zmap, valid, thr)
-    return max((c["mass"] for c in cl), default=0.0)
+def max_cluster_mass(zmap: np.ndarray, valid: np.ndarray, thr: float = CLUSTER_THR) -> float:
+    return max((c["mass"] for c in find_clusters(zmap, valid, thr)), default=0.0)
 
 
-def cluster_test(y_pw: np.ndarray, shape: tuple[int, int], valid: np.ndarray, n_perm: int = 199,
-                 seed: int = 0, thr: float = 1.96) -> tuple[np.ndarray, list[dict], np.ndarray]:
-    """Observed z map, clusters with permutation p-values, and the null distribution of max mass.
+def max_mass_null(series: list[tuple[np.ndarray, np.ndarray, np.ndarray]], shape: tuple[int, int],
+                  n_perm: int = 199, seed: int = 0, thr: float = CLUSTER_THR) -> np.ndarray:
+    """Null distribution of the LARGEST cluster mass over all variables of the scan.
 
-    Time is permuted jointly for all pixels, which keeps the spatial correlation intact.
+    series: (pre-whitened anomalies (time, pixels), var(S) per pixel, valid map) for each variable.
+    When the variables share a time axis, one shuffle of the months is applied to all of them, which keeps
+    the spatial correlation and the correlation between variables. Comparing every cluster with the
+    maximum over all maps controls the family-wise error across the whole scan, not per variable.
+    Ties are unchanged by a shuffle, so var(S) is computed once.
     """
-    z = mk_z(y_pw).reshape(shape)
-    clusters = find_clusters(z, valid, thr)
     rng = np.random.default_rng(seed)
+    lengths = {y.shape[0] for y, _, _ in series}
+    joint = len(lengths) == 1
     null = np.empty(n_perm)
     for i in range(n_perm):
-        idx = rng.permutation(y_pw.shape[0])
-        null[i] = max_cluster_mass(mk_z(y_pw[idx]).reshape(shape), valid, thr)
-    for c in clusters:
-        c["p"] = float((1 + (null >= c["mass"]).sum()) / (1 + n_perm))
-    return z, clusters, null
+        idx = rng.permutation(next(iter(lengths))) if joint else None
+        best = 0.0
+        for y, var, valid in series:
+            order = idx if joint else rng.permutation(y.shape[0])
+            z = core.mk_z(core.mk_s(y[order]), var).reshape(shape)
+            best = max(best, max_cluster_mass(z, valid, thr))
+        null[i] = best
+    return null
 
 
 # ---------------------------------------------------------------- scanning
 
-def scan_cubes(data: dict[str, dict], n_perm: int = 199, alpha: float = 0.05, alpha_fdr: float = 0.10,
+def scan_cubes(data: dict[str, dict], n_perm: int = 199, alpha: float = ALPHA, alpha_fdr: float = 0.10,
                seed: int = 0) -> dict:
-    """Scan already-loaded cubes. data[var] = {dates, lats, lons, cube}. Grids must match."""
+    """Scan already-loaded cubes. data[var] = {dates, lats, lons, cube}. Grids must match.
+
+    Three stages per pixel, all at the same per-test level alpha:
+      usual          plain Mann-Kendall on monthly anomalies, p < alpha
+      pre-whitened   Mann-Kendall after lag-1 pre-whitening, p < alpha
+      + FDR          pre-whitened p-values, Benjamini-Hochberg at q = alpha_fdr across every variable
+                     and pixel of this scan (q = 2 alpha for correlated fields, Wilks 2016)
+    Clusters are a separate test: same-sign groups of |z| > 1.96 whose mass beats the shuffled maps.
+    """
     first = next(iter(data.values()))
     lats, lons = first["lats"], first["lons"]
     shape = (len(lats), len(lons))
-    per_var, all_p, owners = {}, [], []
+    per_var, all_p, owners, null_inputs, observed = {}, [], [], [], {}
     naive_hits = honest_raw_hits = n_tests = 0
     spans = []
 
@@ -195,21 +202,48 @@ def scan_cubes(data: dict[str, dict], n_perm: int = 199, alpha: float = 0.05, al
         months = np.array([int(x[5:7]) for x in dates])
         spans.append((dates[0], dates[-1]))
         anom = monthly_anomalies(cube, months).reshape(len(dates), -1)
-        filled, valid_flat = fill_short_gaps(anom)
+        present = np.isfinite(anom).mean(axis=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            spread = np.nanstd(anom, axis=0)
+        # untestable: too many gaps, or constant (soil wetness pinned at 1 over ice)
+        valid_flat = ((1 - present) <= MAX_MISSING) & (spread > 0)
+        anom[:, ~valid_flat] = np.nan  # untested pixels stay missing; nothing is filled in
         valid = valid_flat.reshape(shape)
-        y_pw = prewhiten(filled)
-        z, clusters, null = cluster_test(y_pw, shape, valid, n_perm, seed)
-        p = np.where(valid, 2 * norm.sf(np.abs(z)), np.nan)
-        z_naive = mk_z_original(filled).reshape(shape)
-        naive_hits += int((valid & (2 * norm.sf(np.abs(z_naive)) < alpha)).sum())
-        honest_raw_hits += int((valid & (p < alpha)).sum())
+
+        plain = core.mk_test(anom)
+        y_pw = core.prewhiten(anom)
+        var_pw = core.mk_var(y_pw)
+        z_map = np.where(valid, core.mk_z(core.mk_s(y_pw), var_pw).reshape(shape), np.nan)
+        p_pw = np.where(valid, 2 * norm.sf(np.abs(z_map)), np.nan)
+        p_naive = np.where(valid, plain["p"].reshape(shape), np.nan)
+        naive_mask = valid & (p_naive < alpha)
+        pw_mask = valid & (p_pw < alpha)
+        naive_hits += int(naive_mask.sum())
+        honest_raw_hits += int(pw_mask.sum())
         n_tests += int(valid.sum())
-        all_p.append(p.ravel())
+        all_p.append(p_pw.ravel())
         owners.append(v)
-        rate = ls_rate_per_decade(filled).reshape(shape)
+        null_inputs.append((y_pw, var_pw, valid))
+        observed[v] = find_clusters(z_map, valid)
+        rate = np.where(valid, sen_rate_per_decade(anom).reshape(shape), np.nan)
+        name, units, up, down = SCAN_VARS.get(v, (v, "", "rising", "falling"))
+        per_var[v] = {"name": name, "units": units, "word_up": up, "word_down": down,
+                      "period": [dates[0], dates[-1]],
+                      "z": z_map, "z_naive": np.where(valid, plain["z"].reshape(shape), np.nan),
+                      "p_naive": p_naive, "p_prewhitened": p_pw,
+                      "naive_mask": naive_mask, "prewhitened_mask": pw_mask,
+                      "rate_per_decade": rate, "rate_method": "Sen's slope of monthly anomalies, per decade",
+                      "valid": valid, "coverage": present.reshape(shape)}
+
+    null = max_mass_null(null_inputs, shape, n_perm, seed)
+    lat_a, lon_a = np.array(lats), np.array(lons)
+    for v, clusters in observed.items():
+        info = per_var[v]
         cl_map = np.zeros(shape, dtype=int)
         cl_out = []
         for i, c in enumerate(sorted(clusters, key=lambda c: -c["mass"]), start=1):
+            c["p"] = float((1 + (null >= c["mass"]).sum()) / (1 + n_perm))
             ys, xs = np.nonzero(c["mask"])
             sig = c["p"] < alpha
             if sig:
@@ -217,17 +251,15 @@ def scan_cubes(data: dict[str, dict], n_perm: int = 199, alpha: float = 0.05, al
             cl_out.append({
                 "id": i, "direction": "rising" if c["sign"] > 0 else "falling", "size": c["size"],
                 "mass": c["mass"], "p": c["p"], "significant": bool(sig),
-                "center_lat": float(np.mean(np.array(lats)[ys])), "center_lon": float(np.mean(np.array(lons)[xs])),
-                "mean_rate_per_decade": float(np.nanmean(rate[c["mask"]])),
+                "test": "cluster mass vs the largest cluster on time-shuffled maps of all variables",
+                "center_lat": float(np.mean(lat_a[ys])), "center_lon": float(np.mean(lon_a[xs])),
+                "mean_rate_per_decade": float(np.nanmean(info["rate_per_decade"][c["mask"]])),
                 "pixels": [[int(a), int(b)] for a, b in zip(ys, xs)],
             })
-        name, units, up, down = SCAN_VARS.get(v, (v, "", "rising", "falling"))
-        per_var[v] = {"name": name, "units": units, "word_up": up, "word_down": down,
-                      "period": [dates[0], dates[-1]],
-                      "z": z, "rate_per_decade": rate, "valid": valid, "cluster_map": cl_map,
-                      "clusters": cl_out, "null_max_mass_95": float(np.quantile(null, 0.95))}
+        info.update({"cluster_map": cl_map, "clusters": cl_out,
+                     "null_max_mass_95": float(np.quantile(null, 0.95))})
 
-    # Global FDR across every variable and pixel together.
+    # FDR across every variable and pixel together.
     stacked = np.concatenate(all_p)
     mask_all, thr_p = fdr_bh(stacked, alpha_fdr)
     k = shape[0] * shape[1]
@@ -240,7 +272,10 @@ def scan_cubes(data: dict[str, dict], n_perm: int = 199, alpha: float = 0.05, al
         "variables": per_var,
         "summary": {"n_tests": n_tests, "naive_hits": naive_hits, "prewhitened_hits": honest_raw_hits,
                     "fdr_hits": int(mask_all.sum()), "fdr_threshold": thr_p,
-                    "significant_clusters": int(sig_clusters), "permutations": n_perm},
+                    "significant_clusters": int(sig_clusters), "permutations": n_perm,
+                    "alpha": alpha, "fdr_q": alpha_fdr, "max_missing": MAX_MISSING,
+                    "fdr_scope": f"all {len(owners)} variables x every tested pixel of this box",
+                    "cluster_scope": f"largest cluster over all {len(owners)} variables (family-wise {alpha:.0%})"},
     }
 
 
@@ -256,6 +291,11 @@ def scan_region(bbox, variables=None, start: int = 1981, end: int = 2025, n_perm
     return res
 
 
+# Bump when the method changes so cached scans made with the old method are not served.
+# 2: tie correction, no zero-filled gaps, Sen rates, cluster null = max over all variables.
+METHOD_VERSION = 2
+
+
 def scan_key(bbox, variables, start, end, n_perm) -> str:
-    raw = json.dumps([list(map(float, bbox)), sorted(variables), start, end, n_perm])
+    raw = json.dumps([list(map(float, bbox)), sorted(variables), start, end, n_perm, METHOD_VERSION])
     return hashlib.sha1(raw.encode()).hexdigest()[:12]
