@@ -3,7 +3,15 @@ import Plot from './Plot'
 
 const AXIS = { gridcolor: 'rgba(139,150,162,0.14)', linecolor: '#2b3947', tickfont: { size: 12 } }
 
-// Monthly anomalies with the Sen's slope trend line and its 95% range, or the raw monthly values
+// Centred 12-month mean; empty where fewer than 9 of the 12 months have data (never bridged with zeros).
+function rolling12(y) {
+  return y.map((_, k) => {
+    const w = y.slice(Math.max(0, k - 6), k + 6).filter((v) => v != null)
+    return k >= 6 && k + 6 <= y.length && w.length >= 9 ? w.reduce((s, v) => s + v, 0) / w.length : null
+  })
+}
+
+// Monthly anomalies with a 12-month rolling mean, the Sen's slope trend line and its 95% range, or the raw monthly values
 // with each calendar month's normal. Missing months are marked along the bottom, never drawn as zero.
 export default function SeriesChart({ series, height = 340, toggle = false }) {
   const [view, setView] = useState('anomaly')
@@ -23,10 +31,14 @@ export default function SeriesChart({ series, height = 340, toggle = false }) {
   const traces = anomaly
     ? [
         { x: dates, y, type: 'scatter', mode: 'lines', name: 'Monthly anomaly', connectgaps: false,
-          line: { color: '#7a8597', width: 1 }, hovertemplate: `%{x|%b %Y}: %{y:.3g} ${units} from normal<extra></extra>` },
+          line: { color: 'rgba(139,150,162,0.55)', width: 1 }, hovertemplate: `%{x|%b %Y}: %{y:.3g} ${units} from normal<extra></extra>` },
         ...(ci ? [{ x: [dates[firstIdx], dates[lastIdx], dates[lastIdx], dates[firstIdx]],
           y: [...line(ci[0]), ...line(ci[1]).reverse()], type: 'scatter', mode: 'lines', fill: 'toself',
-          fillcolor: 'rgba(233,238,242,0.10)', line: { width: 0 }, name: '95% range of the rate', hoverinfo: 'skip' }] : []),
+          fillcolor: 'rgba(86,180,233,0.4)', line: { width: 1, color: 'rgba(86,180,233,0.9)', dash: 'dot' },
+          name: '95% range of the rate', hoverinfo: 'skip' }] : []),
+        { x: dates, y: rolling12(y), type: 'scatter', mode: 'lines', name: '12-month mean', connectgaps: false,
+          line: { color: '#f0e442', width: 2 }, hovertemplate: `%{x|%b %Y}: 12-month mean %{y:.3g} ${units}<extra></extra>` },
+        // drawn last so it sits on top
         { x: [dates[firstIdx], dates[lastIdx]], y: line(analysis.honest.slope_per_year), type: 'scatter', mode: 'lines',
           name: "Trend (Sen's slope)", line: { color: '#e9eef2', width: 3 }, hoverinfo: 'skip' },
       ]
