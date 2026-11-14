@@ -24,7 +24,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate          # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
-pytest -q tests                  # 11 tests
+pytest -q tests                  # statistics, scanner, atlas, lab, detective and published-data checks
 python -m trendlab.validate      # proof numbers (~1 min)
 uvicorn api.main:app --port 8000 # API docs at http://localhost:8000/docs
 ```
@@ -35,6 +35,14 @@ cd web
 npm install
 npm run dev                      # http://localhost:5173 (calls the API on port 8000)
 ```
+
+### Offline data the web app serves (`web/public/data/`)
+| Command (from `backend/`) | What it writes |
+|---|---|
+| `python scripts/build_atlas.py --download` then `python scripts/build_atlas.py` | Global Trend Atlas: `atlas/*.json` and one `cells/*.json` per 5° sample point |
+| `python scripts/build_scans.py` | The nine Region Scanner presets in `scans/` |
+| `python scripts/build_lab.py` | The simulation lab (240 settings x 10 maps) in `lab/lab.json` |
+| `python scripts/build_static.py` | Case files and the original noise maps |
 
 ### Data (needs an Earthdata Login for everything except NASA POWER)
 | Command (from `backend/`) | What it does |
