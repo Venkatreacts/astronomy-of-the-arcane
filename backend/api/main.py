@@ -26,7 +26,12 @@ from trendlab import analyze_series, noise_trap  # noqa: E402
 CASES = BACKEND / "data" / "cases"
 
 app = FastAPI(title="Noise Trap API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
+
+from api.scan_routes import router as scan_router  # noqa: E402
+from api.agent_routes import router as agent_router  # noqa: E402
+app.include_router(scan_router)
+app.include_router(agent_router)
 
 
 def clean(o):

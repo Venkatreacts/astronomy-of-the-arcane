@@ -11,3 +11,5 @@ requests>=2.31
 fastapi>=0.115
 uvicorn>=0.30
 pytest>=8.0
+scikit-learn>=1.5
+anthropic>=2.8

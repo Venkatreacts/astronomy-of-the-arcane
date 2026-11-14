@@ -37,3 +37,16 @@ We compared six corrections on the same simulations. Hamed-Rao (all lags) still 
 - Simulations use AR(1) noise; real data can have longer memory, which this does not cover.
 - Linear trends only, as the challenge scopes.
 - False discovery rate control is debated for spatially coherent signals (Schutte et al. 2026, EGU preprint).
+
+## 4. Region Scanner (tests in `backend/tests/test_scan.py`)
+
+| Check | Result |
+|---|---|
+| Fast all-pixels test vs pymannkendall pre-whitening | p-values agree within 0.01 |
+| 12 maps of pure noise (autocorrelation 0.4, spatially correlated), 49 permutations each | at most 3 scans showed any "significant" cluster (about 5% expected) |
+| A regional trend planted in noise (0.8 SD per decade in a 4x4 block) | found as a rising cluster, at least 10 of its pixels inside the block |
+| Two planted trend regimes ("warming + drying soil" vs the opposite) | k-means recovers 2 regimes, silhouette > 0.5 |
+
+Real scans (NASA POWER, 1981-2025, 199 permutations, about 30 s each): Tamil Nadu 267 tests, 5 clusters pass;
+Punjab-Haryana 315 tests, 5 clusters pass (rising humidity and rainfall, cooling); Kerala/Western Ghats 261 tests, 5 clusters pass.
+Sunlight is not scanned: it comes on a coarser 1-degree grid, and stretching it would duplicate pixels.

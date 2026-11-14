@@ -48,3 +48,17 @@ input[type="number"] { width: 110px; }
 .source { font-size: .8rem; color: var(--muted); }
 .case-series { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
 footer { margin: 32px 0 8px; font-size: .8rem; color: var(--muted); }
+.scoreboard.four { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.maps.three { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.findings li { margin: 6px 0; }
+.regimes .legend { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 14px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+h3 { margin-top: 22px; }
+.ask { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: .9rem; margin: 8px 0; max-width: 760px; }
+textarea { font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.answer p { margin: 4px 0; }
+.trace { padding-left: 20px; }
+.trace summary { cursor: pointer; }
+.trace code { font-size: .8rem; color: var(--muted); }
+.trace pre { white-space: pre-wrap; font-size: .78rem; background: var(--card); border: 1px solid var(--line); padding: 8px; border-radius: 6px; }
+.chip { white-space: normal; text-align: left; max-width: 100%; }

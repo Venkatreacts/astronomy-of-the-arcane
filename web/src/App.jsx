@@ -2,10 +2,14 @@ import { useState } from 'react'
 import NoiseTrapView from './views/NoiseTrapView'
 import InvestigateView from './views/InvestigateView'
 import CasesView from './views/CasesView'
+import ScanView from './views/ScanView'
+import DetectiveView from './views/DetectiveView'
 import './App.css'
 
 const TABS = [
   { id: 'trap', label: 'Noise Trap', view: NoiseTrapView },
+  { id: 'scan', label: 'Scan a region', view: ScanView },
+  { id: 'detective', label: 'AI Detective', view: DetectiveView },
   { id: 'investigate', label: 'Investigate a place', view: InvestigateView },
   { id: 'cases', label: 'Case files', view: CasesView },
 ]
