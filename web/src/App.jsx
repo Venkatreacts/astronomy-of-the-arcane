@@ -9,10 +9,12 @@ import InvestigateView from './views/InvestigateView'
 import CasesView from './views/CasesView'
 import ScanView from './views/ScanView'
 import DetectiveView from './views/DetectiveView'
+import WhoView from './views/WhoView'
 import './App.css'
 
 const PLATES = [
   ['atlas', 'The planet'],
+  ['who', 'Who it’s for'],
   ['trap', 'The trap'],
   ['place', 'Your place'],
   ['scan', 'Scan a region'],
@@ -48,6 +50,7 @@ export default function App() {
           setPick({ ...p, at: Date.now() })
           document.getElementById('place')?.scrollIntoView({ behavior: 'smooth' })
         }} /></section>
+        <section id="who" className="plate"><WhoView /></section>
         <section id="trap" className="plate"><NoiseTrapView /></section>
         <section id="place" className="plate"><InvestigateView pick={pick} /><CasesView /></section>
         <section id="scan" className="plate"><ScanView /></section>

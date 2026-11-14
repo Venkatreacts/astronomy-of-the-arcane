@@ -50,6 +50,8 @@ export const api = {
     get(`/api/scan?lat_min=${latMin}&lat_max=${latMax}&lon_min=${lonMin}&lon_max=${lonMax}`),
   atlasIndex: () => getStatic('atlas/index.json'),
   atlas: (id) => getStatic(`atlas/${encodeURIComponent(id)}.json`),
+  atlasYears: (id) => getStatic(`atlas/years_${encodeURIComponent(id)}.json`),
+  land: () => fetch(`${import.meta.env.BASE_URL}topojson/world_110m.json`).then((r) => r.json()),
   // one pre-computed file per atlas sample point, with all five variables (works offline)
   cell: (lat, lon) => {
     const f = (v) => `${v >= 0 ? '+' : '-'}${Math.abs(v).toFixed(1)}`

@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Plot from '../components/Plot'
+import Globe from '../components/Globe'
 import FingerprintTable from '../components/Fingerprint'
 import { api } from '../api'
 import { deg, fmt, pct, pval } from '../lib/format'
+import { rgb, scale } from '../lib/color'
+import { verdictCard } from '../lib/card'
 
 const USUAL = '#d55e00'
 const HONEST = '#0072b2'
-const FADE_MS = 700
-// shortcut: size read once at load, not on resize; fine for a one-screen demo
+// shortcut: height read once at load, not on resize; the width follows the container
 const GLOBE_H = Math.round(Math.min(window.innerHeight - 56, 900, Math.max(360, window.innerWidth * 0.92)))
-const K = GLOBE_H / 720 // squares shrink with the globe so the 5° grid never overlaps
+const YEAR_MS = 450
 
 // The three stages of the same question, each at p < 0.05 per test.
 const STAGES = [
@@ -22,10 +23,18 @@ const LAYERS = [
   { id: 'rate', label: 'Trend size' },
   { id: 'phi', label: 'Stickiness' },
   { id: 'coverage', label: 'Data coverage' },
+  { id: 'years', label: 'Play the years' },
 ]
+const TEST_PARAM = { naive: 'usual', pw: 'pw', fdr: 'honest' }
 const DIVERGING = [[0, '#cc79a7'], [0.5, '#2a3540'], [1, '#009e73']]
 const STICKY = [[0, '#1f2b36'], [1, '#f0e442']]
 const COVER = [[0, '#f0e442'], [1, '#2a3540']]
+const QUIET = rgb('#1f2b36')
+const divRamp = scale(DIVERGING)
+const stickyRamp = scale(STICKY)
+const coverRamp = scale(COVER)
+const sweepRGB = (hex) => rgb(hex).join(',')
+const query = new URLSearchParams(window.location.search)
 
 function readHistory() {
   try { return JSON.parse(localStorage.getItem('nt-history') || '[]').slice(0, 6) } catch { return [] }
@@ -34,24 +43,54 @@ function saveHistory(h) {
   try { localStorage.setItem('nt-history', JSON.stringify(h)) } catch { /* private mode: history lasts this visit */ }
 }
 
-const sizes = (cells, base) => cells.map((c) => base * Math.max(0.35, Math.cos((c.lat * Math.PI) / 180)))
-
-function hover(atlas) {
+function describe(atlas) {
   const word = (c) => (c.rate > 0 ? atlas.rising : atlas.falling)
-  return (c) => `${deg(c.lat, c.lon)} · sampled point<br>${word(c)} ${fmt(c.rate, true)} ${atlas.units}/decade `
-    + `(95% ${fmt(c.rate_lo, true)} to ${fmt(c.rate_hi, true)})<br>`
-    + `usual p ${pval(c.p_naive)} · without stickiness p ${pval(c.p_honest)} · φ ${fmt(c.phi, false, 2)}<br>`
-    + `usual: ${c.naive ? 'trend' : 'no'} · stickiness removed: ${c.pw ? 'trend' : 'no'} · honest (FDR): ${c.honest ? 'trend' : 'not proven'}`
+  return (c) => [
+    `${deg(c.lat, c.lon)} · sample point`,
+    `${word(c)} ${fmt(c.rate, true)} ${atlas.units}/decade (95% ${fmt(c.rate_lo, true)} to ${fmt(c.rate_hi, true)})`,
+    `usual p ${pval(c.p_naive)} · without stickiness p ${pval(c.p_honest)} · φ ${fmt(c.phi, false, 2)}`,
+    `usual: ${c.naive ? 'trend' : 'no'} · stickiness removed: ${c.pw ? 'trend' : 'no'} · honest: ${c.honest ? 'trend' : 'not proven'}`,
+  ]
 }
 
-function trace(cells, atlas, marker, extra = {}) {
-  const text = hover(atlas)
-  return {
-    type: 'scattergeo', mode: 'markers', lat: cells.map((c) => c.lat), lon: cells.map((c) => c.lon),
-    customdata: cells, text: cells.map(text), hovertemplate: '%{text}<extra></extra>',
-    marker: { symbol: 'square', line: { width: 0 }, ...marker, size: sizes(cells, marker.size ?? 9 * K) },
-    ...extra,
-  }
+function nearest(cells, lat, lon) {
+  return cells.reduce((a, c) => {
+    const d = (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos((lat * Math.PI) / 180)) ** 2
+    return d < a.d ? { c, d } : a
+  }, { c: null, d: Infinity }).c
+}
+
+// area-weighted mean over the sampled points, per year (cos-latitude weights; not a global average)
+function yearlyMean(years) {
+  const n = years.years[1] - years.years[0] + 1
+  return Array.from({ length: n }, (_, y) => {
+    let s = 0
+    let w = 0
+    for (const [lat, , ys] of years.cells) {
+      if (ys[y] == null) continue
+      const k = Math.cos((lat * Math.PI) / 180)
+      s += k * ys[y]
+      w += k
+    }
+    return w ? s / w : null
+  })
+}
+
+function Spark({ values, at, first }) {
+  const ok = values.filter((v) => v != null)
+  const max = Math.max(...ok.map(Math.abs)) || 1
+  const W = 280
+  const H = 56
+  const x = (i) => (i / (values.length - 1)) * W
+  const y = (v) => H / 2 - (v / max) * (H / 2 - 3)
+  const d = values.map((v, i) => (v == null ? '' : `${i && values[i - 1] != null ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`)).join('')
+  return (
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
+      <line x1="0" x2={W} y1={H / 2} y2={H / 2} className="zero" />
+      <path d={d} />
+      <line x1={x(at - first)} x2={x(at - first)} y1="0" y2={H} className="cursor" />
+    </svg>
+  )
 }
 
 function Legend({ layer, stage, atlas, rateMax }) {
@@ -97,57 +136,79 @@ export default function AtlasView({ onPick }) {
   const [index, setIndex] = useState([])
   const [varId, setVarId] = useState(null)
   const [atlas, setAtlas] = useState(null)
-  // ?test=honest opens on the honest verdict, for shareable demo links
-  const [stage, setStage] = useState(() => (new URLSearchParams(window.location.search).get('test') === 'honest' ? 'fdr' : 'naive'))
-  const [from, setFrom] = useState(stage)
-  const [fade, setFade] = useState(1) // 0 = `from` stage shown, 1 = `stage` shown
-  const [layer, setLayer] = useState('verdict')
+  // links carry ?var=&test=&layer=&lat=&lon=, so any view of the globe can be shared
+  const [stage, setStage] = useState(() => ({ honest: 'fdr', pw: 'pw' })[query.get('test')] ?? 'naive')
+  const [layer, setLayer] = useState(() => (LAYERS.some((l) => l.id === query.get('layer')) ? query.get('layer') : 'verdict'))
   const [picked, setPicked] = useState(null)
+  const [focus, setFocus] = useState(null)
   const [history, setHistory] = useState(readHistory)
   const [coord, setCoord] = useState({ lat: '', lon: '' })
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
-  const frame = useRef(0)
+  const [years, setYears] = useState(null)
+  const [year, setYear] = useState(null)
+  const [playing, setPlaying] = useState(false)
+  const opened = useRef(false)
 
   useEffect(() => {
     api.atlasIndex().then((idx) => {
       setIndex(idx)
-      // open on the variable where the usual test is most wrong: the trap at its clearest
+      const asked = idx.find((v) => v.id === query.get('var'))
+      // otherwise open on the variable where the usual test is most wrong: the trap at its clearest
       const gap = (v) => v.naive_fraction - v.honest_fraction
-      setVarId(idx.reduce((a, b) => (gap(b) > gap(a) ? b : a)).id)
+      setVarId((asked ?? idx.reduce((a, b) => (gap(b) > gap(a) ? b : a))).id)
     }).catch((e) => setError(e.message))
   }, [])
   useEffect(() => {
     if (varId) api.atlas(varId).then(setAtlas).catch((e) => setError(e.message))
   }, [varId])
-  // keep the picked point in sync with the variable shown (soil wetness has no ocean points)
   useEffect(() => {
-    if (!atlas || !picked) return
+    if (!atlas) return
+    // a shared link opens on its point, once
+    if (!opened.current) {
+      opened.current = true
+      const lat = Number(query.get('lat'))
+      const lon = Number(query.get('lon'))
+      const c = query.has('lat') && Number.isFinite(lat) && Number.isFinite(lon) ? nearest(atlas.cells, lat, lon) : null
+      if (c) { setPicked(c); setFocus({ lat: c.lat, lon: c.lon, at: Date.now() }) }
+      return
+    }
+    // keep the picked point in sync with the variable shown (soil wetness has no ocean points)
+    if (!picked) return
     const same = atlas.cells.find((c) => c.lat === picked.lat && c.lon === picked.lon)
     setPicked(same || null)
     if (!same) setNote(`${atlas.name} has no value at ${deg(picked.lat, picked.lon)} (ocean or ice).`)
   }, [atlas]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function go(next) {
-    if (next === stage) return
-    setFrom(stage)
-    setStage(next)
-    setFade(0)
-    cancelAnimationFrame(frame.current)
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setFade(1); return }
-    const start = performance.now()
-    const step = (now) => {
-      const t = Math.min(1, (now - start) / FADE_MS)
-      setFade(1 - Math.pow(1 - t, 4))
-      if (t < 1) frame.current = requestAnimationFrame(step)
-    }
-    frame.current = requestAnimationFrame(step)
-  }
-  useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  useEffect(() => {
+    if (!varId) return
+    const q = new URLSearchParams({ var: varId, test: TEST_PARAM[stage] })
+    if (layer !== 'verdict') q.set('layer', layer)
+    if (picked) { q.set('lat', picked.lat); q.set('lon', picked.lon) }
+    window.history.replaceState(null, '', `?${q}${window.location.hash}`)
+  }, [varId, stage, layer, picked])
 
-  function pick(c) {
+  useEffect(() => {
+    if (layer !== 'years' || !varId) return
+    let live = true
+    api.atlasYears(varId).then((d) => {
+      if (!live) return
+      setYears(d)
+      setYear((y) => (y && y >= d.years[0] && y <= d.years[1] ? y : d.years[0]))
+    }).catch((e) => live && setError(e.message))
+    return () => { live = false }
+  }, [layer, varId])
+  useEffect(() => {
+    if (!playing || !years) return
+    const t = setInterval(() => setYear((y) => Math.min(years.years[1], y + 1)), YEAR_MS)
+    return () => clearInterval(t)
+  }, [playing, years])
+  useEffect(() => { if (playing && years && year >= years.years[1]) setPlaying(false) }, [playing, years, year])
+
+  function pick(c, fly = false) {
     setPicked(c)
     setNote('')
+    if (fly) setFocus({ lat: c.lat, lon: c.lon, at: Date.now() })
     const h = [{ lat: c.lat, lon: c.lon, id: atlas.id }, ...history.filter((p) => p.lat !== c.lat || p.lon !== c.lon)].slice(0, 6)
     setHistory(h)
     saveHistory(h)
@@ -157,15 +218,41 @@ export default function AtlasView({ onPick }) {
     e.preventDefault()
     const lat = Number(coord.lat)
     const lon = Number(coord.lon)
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    if (coord.lat === '' || coord.lon === '' || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
       setNote('Enter a latitude between -90 and 90 and a longitude between -180 and 180.')
       return
     }
-    const best = atlas.cells.reduce((a, c) => {
-      const d = (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos((lat * Math.PI) / 180)) ** 2
-      return d < a.d ? { c, d } : a
-    }, { c: null, d: Infinity })
-    if (best.c) pick(best.c)
+    const c = nearest(atlas.cells, lat, lon)
+    if (c) pick(c, true)
+  }
+
+  function here() {
+    if (!navigator.geolocation) { setNote('This browser cannot share its location. Type coordinates instead.'); return }
+    setNote('Finding you…')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const c = nearest(atlas.cells, pos.coords.latitude, pos.coords.longitude)
+        if (c) pick(c, true)
+        setNote(c ? `Nearest sample point to you: ${deg(c.lat, c.lon)}. Your location is not sent anywhere.` : '')
+      },
+      () => setNote('Location not shared. Type coordinates instead.'),
+      { timeout: 10000, maximumAge: 600000 },
+    )
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setNote('Link copied. It opens this point, variable and test.')
+    } catch { setNote(window.location.href) }
+  }
+  async function card() {
+    setNote('Drawing the card…')
+    try {
+      const record = await api.cell(picked.lat, picked.lon).then((c) => c.vars[atlas.id]).catch(() => null)
+      await verdictCard({ atlas, cell: picked, record, link: window.location.href })
+      setNote('Verdict card saved as a PNG.')
+    } catch (e) { setNote(`Could not draw the card: ${e.message}`) }
   }
 
   const rateMax = useMemo(() => {
@@ -173,42 +260,28 @@ export default function AtlasView({ onPick }) {
     const r = atlas.cells.map((c) => Math.abs(c.rate)).sort((a, b) => a - b)
     return r[Math.floor(r.length * 0.95)] || 1
   }, [atlas])
-
-  const data = useMemo(() => {
-    if (!atlas) return []
-    const now = STAGES.find((s) => s.id === stage)
-    const before = STAGES.find((s) => s.id === from)
-    const cells = atlas.cells
-    let traces
-    if (layer === 'verdict') {
-      const g = { quiet: [], gone: [], both: [], come: [] }
-      for (const c of cells) {
-        const a = c[before.flag]
-        const b = c[now.flag]
-        g[a ? (b ? 'both' : 'gone') : (b ? 'come' : 'quiet')].push(c)
-      }
-      traces = [
-        trace(g.quiet, atlas, { color: '#1f2b36', size: 7 * K }),
-        trace(g.gone, atlas, { color: before.color, opacity: 1 - 0.85 * fade }),
-        trace(g.both, atlas, { color: fade > 0.5 ? now.color : before.color }),
-        trace(g.come, atlas, { color: now.color, opacity: fade }),
-      ]
-    } else if (layer === 'rate') {
-      traces = [trace(cells, atlas, { color: cells.map((c) => c.rate), colorscale: DIVERGING, cmin: -rateMax, cmax: rateMax,
-        opacity: cells.map((c) => (c[now.flag] ? 1 : 0.3)) })]
-    } else if (layer === 'phi') {
-      traces = [trace(cells, atlas, { color: cells.map((c) => c.phi), colorscale: STICKY, cmin: 0, cmax: 1 })]
-    } else {
-      traces = [trace(cells, atlas, { color: cells.map((c) => c.coverage ?? 1), colorscale: COVER, cmin: 0.8, cmax: 1 })]
-    }
-    if (picked) {
-      traces.push({ type: 'scattergeo', mode: 'markers', lat: [picked.lat], lon: [picked.lon], hoverinfo: 'skip',
-        marker: { symbol: 'square-open', size: 16 * K, color: '#e9eef2', line: { width: 2 } } })
-    }
-    return traces
-  }, [atlas, stage, from, fade, layer, picked, rateMax])
+  const yearData = useMemo(() => {
+    if (!years || years.id !== atlas?.id) return null
+    const map = new Map(years.cells.map(([lat, lon, ys]) => [`${lat},${lon}`, ys]))
+    const all = years.cells.flatMap((c) => c[2]).filter((v) => v != null).map(Math.abs).sort((a, b) => a - b)
+    return { map, max: all[Math.floor(all.length * 0.95)] || 1, mean: yearlyMean(years) }
+  }, [years, atlas])
+  const tell = useMemo(() => (atlas ? describe(atlas) : null), [atlas])
 
   const now = STAGES.find((s) => s.id === stage)
+  const showYears = layer === 'years' && yearData && year != null
+  const paint = (c) => {
+    if (layer === 'rate') return [...divRamp(0.5 + c.rate / (2 * rateMax)), c[now.flag] ? 1 : 0.28, 1]
+    if (layer === 'phi') return [...stickyRamp(c.phi), 1, 1]
+    if (layer === 'coverage') return [...coverRamp(((c.coverage ?? 1) - 0.8) / 0.2), 1, 1]
+    if (layer === 'years') {
+      const v = showYears ? yearData.map.get(`${c.lat},${c.lon}`)?.[year - years.years[0]] : null
+      return v == null ? [...QUIET, 0.5, 0.7] : [...divRamp(0.5 + v / (2 * yearData.max)), 1, 1]
+    }
+    return c[now.flag] ? [...rgb(now.color), 1, 1] : [...QUIET, 0.95, 0.72]
+  }
+  const paintKey = `${atlas?.id}|${layer}|${layer === 'years' ? `${Boolean(showYears)}|${year}` : stage}`
+
   const flagged = atlas ? atlas.cells.filter((c) => c[now.flag]) : []
   const up = flagged.filter((c) => c.rate > 0).length
   const land = atlas && atlas.n_cells < Math.max(...index.map((v) => v.n_cells))
@@ -216,29 +289,20 @@ export default function AtlasView({ onPick }) {
 
   return (
     <div className="atlas">
-      <div className="globe" aria-label="Globe of trend test results at sampled points; drag to rotate, click a square to read it">
+      <div className="globe">
         {atlas ? (
-          <Plot
-            data={data}
-            layout={{
-              height: GLOBE_H,
-              margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: false, dragmode: 'pan',
-              paper_bgcolor: 'rgba(0,0,0,0)', hoverlabel: { bgcolor: '#0b1016', bordercolor: '#33414f',
-                font: { family: 'Barlow, sans-serif', color: '#e9eef2', size: 14 } },
-              geo: {
-                projection: { type: 'orthographic', rotation: { lon: 40, lat: 12 } },
-                bgcolor: 'rgba(0,0,0,0)', showocean: true, oceancolor: '#070b10', showland: true, landcolor: '#0f161e',
-                showcoastlines: true, coastlinecolor: '#2b3947', coastlinewidth: 0.6, showcountries: false,
-                showframe: false, lonaxis: { showgrid: true, gridcolor: '#121a23', dtick: 30 },
-                lataxis: { showgrid: true, gridcolor: '#121a23', dtick: 30 },
-              },
-            }}
-            config={{ displayModeBar: false, responsive: true, scrollZoom: false }}
-            style={{ width: '100%' }}
-            useResizeHandler
-            onClick={(e) => { const c = e?.points?.[0]?.customdata; if (c?.lat != null) pick(c) }}
-          />
+          <Globe cells={atlas.cells} step={atlas.step_deg} paint={paint} paintKey={paintKey} sweep={layer !== 'years'}
+            sweepColor={sweepRGB(layer === 'verdict' || layer === 'rate' ? now.color : '#56b4e9')}
+            picked={picked} focus={focus} onPick={(c) => pick(c)} describe={tell} height={GLOBE_H}
+            label={`Globe of ${atlas.name.toLowerCase()} at ${atlas.n_cells} sample points. Drag or use the arrow keys to turn it; click a square to read it.`} />
         ) : <div className="globe-wait" style={{ height: GLOBE_H }}>{error ? '' : 'Loading the world…'}</div>}
+        {showYears && (
+          <div className="year-stamp">
+            <span className="y">{year}</span>
+            <Spark values={yearData.mean} at={year} first={years.years[0]} />
+            <span className="small">mean of the sample points, weighted by area</span>
+          </div>
+        )}
       </div>
 
       <div className="caption">
@@ -254,7 +318,8 @@ export default function AtlasView({ onPick }) {
 
         <div className="switch three" role="group" aria-label="Which test to show">
           {STAGES.map((s) => (
-            <button key={s.id} className={stage === s.id ? `on ${s.id}` : ''} aria-pressed={stage === s.id} onClick={() => go(s.id)}>
+            <button key={s.id} className={stage === s.id ? `on ${s.id}` : ''} aria-pressed={stage === s.id}
+              onClick={() => { setStage(s.id); if (layer !== 'rate') setLayer('verdict') }}>
               <span>{s.label}</span>
               {atlas && <span className="n">{pct(atlas[s.frac] ?? (s.id === 'pw' ? null : 0))}</span>}
             </button>
@@ -272,7 +337,32 @@ export default function AtlasView({ onPick }) {
             <button key={l.id} className={l.id === layer ? 'on' : ''} aria-pressed={l.id === layer} onClick={() => setLayer(l.id)}>{l.label}</button>
           ))}
         </div>
-        {atlas && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} />}
+        {atlas && layer !== 'years' && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} />}
+        {layer === 'years' && (
+          <div className="player">
+            {!yearData ? <p className="small">Loading 45 years of {atlas?.name.toLowerCase()}…</p> : (
+              <>
+                <div className="player-row">
+                  <button className="play" aria-pressed={playing}
+                    onClick={() => { if (!playing && year >= years.years[1]) setYear(years.years[0]); setPlaying(!playing) }}>
+                    {playing ? 'Pause' : 'Play'}
+                  </button>
+                  <input type="range" min={years.years[0]} max={years.years[1]} value={year} aria-label="Year"
+                    onChange={(e) => { setPlaying(false); setYear(Number(e.target.value)) }} />
+                  <output>{year}</output>
+                </div>
+                <div className="ramp">
+                  <span className="ramp-bar" style={{ background: 'linear-gradient(90deg,#cc79a7,#2a3540,#009e73)' }} />
+                  <span className="ramp-ends"><span>{fmt(-yearData.max, true)}</span><span>{fmt(yearData.max, true)} {atlas.units}</span></span>
+                  <span className="ramp-note">
+                    Each square is that year minus its own 1981–2025 normal. Watch how much it jumps from year to year:
+                    that is the noise the usual test mistakes for trends. Verdicts come only from the monthly tests.
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {atlas && layer === 'coverage' && full && (
           <p className="note">Every one of the {atlas.n_cells.toLocaleString()} points has all {(atlas.years[1] - atlas.years[0] + 1) * 12} months: no gaps to fill.</p>
         )}
@@ -297,9 +387,13 @@ export default function AtlasView({ onPick }) {
               <p className="small">At this rate and stickiness, about {Math.ceil(picked.more_years)} more years of data would be needed.</p>
             )}
             <Fingerprint point={picked} current={atlas.id} />
-            <button className="link" onClick={() => onPick?.({ lat: picked.lat, lon: picked.lon, param: atlas.id })}>
-              Open the full record for {atlas.name.toLowerCase()} here
-            </button>
+            <div className="actions">
+              <button className="link" onClick={() => onPick?.({ lat: picked.lat, lon: picked.lon, param: atlas.id })}>
+                Open the full record
+              </button>
+              <button className="link" onClick={card}>Download verdict card</button>
+              <button className="link" onClick={copyLink}>Copy link</button>
+            </div>
           </div>
         )}
         {note && <p className="note" role="status">{note}</p>}
@@ -309,6 +403,7 @@ export default function AtlasView({ onPick }) {
             <label>Lat<input inputMode="decimal" value={coord.lat} onChange={(e) => setCoord({ ...coord, lat: e.target.value })} placeholder="13.1" /></label>
             <label>Lon<input inputMode="decimal" value={coord.lon} onChange={(e) => setCoord({ ...coord, lon: e.target.value })} placeholder="80.3" /></label>
             <button type="submit">Nearest point</button>
+            <button type="button" onClick={here}>Use my location</button>
           </form>
         )}
         {history.length > 0 && atlas && (
@@ -316,7 +411,7 @@ export default function AtlasView({ onPick }) {
             <span>Looked at</span>
             {history.map((h) => {
               const c = atlas.cells.find((x) => x.lat === h.lat && x.lon === h.lon)
-              return c && <button key={`${h.lat},${h.lon}`} className="chip" onClick={() => pick(c)}>{deg(h.lat, h.lon)}</button>
+              return c && <button key={`${h.lat},${h.lon}`} className="chip" onClick={() => pick(c, true)}>{deg(h.lat, h.lon)}</button>
             })}
           </div>
         )}
