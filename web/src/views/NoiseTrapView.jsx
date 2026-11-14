@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import MaskMap from '../components/MaskMap'
 import { api } from '../api'
+import { RULE, STAGE } from '../lib/stages'
 
 const METHODS = [
-  { id: 'naive', label: 'Usual test', tone: 'u', color: '#d55e00', how: 'Mann-Kendall, p < 0.05' },
-  { id: 'pw', label: 'Stickiness removed', tone: 'pw', color: '#56b4e9', how: 'pre-whitened Mann-Kendall, p < 0.05' },
-  { id: 'fdr', label: 'Honest test', tone: 'h', color: '#0072b2', how: 'pre-whitened, false discovery rate 10% over the map' },
+  { id: 'naive', label: STAGE.usual, tone: 'u', color: '#d55e00', how: 'Mann-Kendall, p < 0.05' },
+  { id: 'pw', label: STAGE.pw, tone: 'pw', color: '#56b4e9', how: 'pre-whitened Mann-Kendall, p < 0.05' },
+  { id: 'fdr', label: STAGE.honest, tone: 'h', color: '#0072b2', how: RULE.map },
 ]
 const CONTROLS = [
   { key: 'phi', label: 'Stickiness φ', fmt: (v) => v.toFixed(1) },
@@ -99,8 +100,8 @@ export default function NoiseTrapView() {
           </table>
           {withTrend && m.fdr.power && m.fdr.power.mean < 0.8 && (
             <p className="callout" role="note">
-              Here the honest test finds only {pc(m.fdr.power.mean)} of a real trend. Sticky, short or gappy data carries
-              less independent information, so an honest test needs a longer record. The usual test only looks better
+              Here the honest verdict finds only {pc(m.fdr.power.mean)} of a real trend. Sticky, short or gappy data carries
+              less independent information, so an honest verdict needs a longer record. The usual test only looks better
               because it also flags {pc(m.naive.false_alarm.mean)} of the trend-free half.
             </p>
           )}

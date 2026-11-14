@@ -3,6 +3,8 @@ import { api } from '../api'
 import SeriesChart from '../components/SeriesChart'
 import Verdict from '../components/Verdict'
 import MaskMap from '../components/MaskMap'
+import { pct } from '../lib/format'
+import { RULE, STAGE } from '../lib/stages'
 
 export default function CasesView() {
   const [cases, setCases] = useState([])
@@ -41,20 +43,21 @@ export default function CasesView() {
       {active?.slope && (
         <article className="case-series">
           <p className="lead">
-            Usual method: {(active.naive_fraction * 100).toFixed(1)}% of the map "significant".
-            Noise Trap: {(active.honest_fraction * 100).toFixed(1)}%. {active.note}
+            {STAGE.usual}: {pct(active.naive_fraction, 1)} of the map flagged.
+            {' '}{STAGE.honest}: {pct(active.honest_fraction, 1)}. {active.note}
           </p>
           <div className="maps">
-            <MaskMap mask={active.naive_mask} title="Usual method: significant pixels" color="#d55e00" />
-            <MaskMap mask={active.honest_mask} title="Noise Trap: significant pixels" color="#0072b2" />
+            <MaskMap mask={active.naive_mask} title={`${STAGE.usual}: flagged pixels`} color="#d55e00" />
+            <MaskMap mask={active.honest_mask} title={`${STAGE.honest}: flagged pixels`} color="#0072b2" />
           </div>
+          <p className="small rule">{RULE.map}</p>
           <p className="source">Source: {active.source}</p>
         </article>
       )}
       {active?.series?.map((s) => (
         <article key={s.name} className="case-series">
           <SeriesChart series={s} height={280} />
-          <Verdict analysis={s.analysis} units={s.units} />
+          <Verdict series={s} />
           <p className="source">Source: {s.source}</p>
         </article>
       ))}

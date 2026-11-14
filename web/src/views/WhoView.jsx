@@ -12,7 +12,7 @@ const USES = [
   },
   {
     who: 'Teachers and students',
-    what: 'The lab plants trends in fake data, so the right answer is known. Watch the usual test invent trends in pure noise and the honest test refuse to, one setting at a time.',
+    what: 'The lab plants trends in fake data, so the right answer is known. Watch the usual test invent trends in pure noise and the honest verdict refuse to, one setting at a time.',
     go: '#trap', cta: 'Try the lab',
   },
   {

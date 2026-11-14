@@ -5,7 +5,7 @@ import { download } from '../lib/format'
 const EXAMPLES = [
   'What is changing in the Cauvery delta, and is it real or chance?',
   'Compare the Sahel and the US Corn Belt: where is change more convincing?',
-  'At Chennai, which of the five variables have a trend that survives the honest test?',
+  'At Chennai, which of the five variables have a trend that passes the honest verdict?',
   'Why does soil wetness fool the usual test more than temperature does?',
   'With 30 years of sticky data (phi 0.7), how often does each method find a real trend?',
 ]

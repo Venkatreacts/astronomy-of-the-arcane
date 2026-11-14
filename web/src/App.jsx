@@ -56,7 +56,7 @@ export default function App() {
         <section id="scan" className="plate"><ScanView /></section>
         <section id="detective" className="plate"><DetectiveView /></section>
         <section id="method" className="plate method">
-          <h2>How we know the honest test is honest</h2>
+          <h2>How we know the honest verdict is honest</h2>
           <div className="cols">
             <p>
               We make fake Earth data where the truth is known (the lab above). On 45 years of pure noise as sticky as
@@ -65,7 +65,7 @@ export default function App() {
               false-discovery control to 0%.
             </p>
             <p>
-              Plant a real trend in half the map and all three methods find all of it up to φ = 0.7. The honest test
+              Plant a real trend in half the map and all three methods find all of it up to φ = 0.7. The honest verdict
               then also flags about 7% of the empty half, so roughly 1 in 15 of its flags is wrong: inside the 10% false
               discovery rate it promises. The 95% range on a rate held the true rate 93–98% of the time, with or
               without 30% of months missing.

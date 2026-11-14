@@ -8,7 +8,7 @@
   --line-2: #2b3947;
   --usual: #d55e00;     /* colour-blind safe orange: the usual test */
   --usual-ink: #f0894a;
-  --honest: #0072b2;    /* colour-blind safe blue: the honest test */
+  --honest: #0072b2;    /* colour-blind safe blue: the honest verdict */
   --honest-ink: #56b4e9;
   --display: "Barlow Semi Condensed", "Barlow", sans-serif;
   --body: "Barlow", system-ui, sans-serif;
@@ -278,3 +278,18 @@ figcaption .how { display: block; font-size: 13px; color: var(--meta); margin-to
   .plate { padding-top: 64px; padding-bottom: 56px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+
+/* the fixed sentence naming which rule made the honest verdict */
+.rule { font-size: 13px; line-height: 1.4; color: var(--meta); max-width: 62ch; }
+.legend-row li.rule { flex-basis: 100%; }
+.verdicts .rule { color: var(--meta); }
+.fingerprint tfoot td { text-align: left; padding-top: 8px; border: 0; }
+
+/* region scan: stage 2 and the honest verdict as two answers to two questions, side by side */
+.answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 32px; margin: 8px 0 12px; max-width: 70ch; }
+.answers > div { border-top: 2px solid #56b4e9; padding-top: 8px; }
+.answers > div.h { border-top-color: var(--honest); }
+.answers dt { font: 600 13px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--meta); }
+.answers dd { margin: 4px 0 0; }
+.answers dd strong { font: 700 32px/1 var(--display); font-variant-numeric: tabular-nums; }
+.answers dd.q { font-size: 14px; color: var(--ink-2); }

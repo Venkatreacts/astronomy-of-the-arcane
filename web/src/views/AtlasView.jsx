@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Globe from '../components/Globe'
 import FingerprintTable from '../components/Fingerprint'
 import { api } from '../api'
-import { deg, fmt, pct, pval } from '../lib/format'
+import { baseMean, deg, fmt, howMuch, pct, pval, rate } from '../lib/format'
+import { fromCell } from '../lib/record'
+import { RULE, STAGE } from '../lib/stages'
 import { rgb, scale } from '../lib/color'
 import { verdictCard } from '../lib/card'
 
@@ -12,11 +14,11 @@ const HONEST = '#0072b2'
 const GLOBE_H = Math.round(Math.min(window.innerHeight - 56, 900, Math.max(360, window.innerWidth * 0.92)))
 const YEAR_MS = 450
 
-// The three stages of the same question, each at p < 0.05 per test.
+// The three stages of the same question; the globe is a map, so the honest verdict uses the map rule.
 const STAGES = [
-  { id: 'naive', label: 'Usual test', flag: 'naive', frac: 'naive_fraction', color: USUAL },
-  { id: 'pw', label: 'Remove stickiness', flag: 'pw', frac: 'pw_fraction', color: '#56b4e9' },
-  { id: 'fdr', label: 'Honest test', flag: 'honest', frac: 'honest_fraction', color: HONEST },
+  { id: 'naive', label: STAGE.usual, flag: 'naive', frac: 'naive_fraction', color: USUAL },
+  { id: 'pw', label: STAGE.pw, flag: 'pw', frac: 'pw_fraction', color: '#56b4e9' },
+  { id: 'fdr', label: STAGE.honest, flag: 'honest', frac: 'honest_fraction', color: HONEST },
 ]
 const LAYERS = [
   { id: 'verdict', label: 'Verdict' },
@@ -45,11 +47,14 @@ function saveHistory(h) {
 
 function describe(atlas) {
   const word = (c) => (c.rate > 0 ? atlas.rising : atlas.falling)
+  const [first, last] = [`${atlas.years[0]}-01`, `${atlas.years[1]}-12`]
   return (c) => [
     `${deg(c.lat, c.lon)} · sample point`,
-    `${word(c)} ${fmt(c.rate, true)} ${atlas.units}/decade (95% ${fmt(c.rate_lo, true)} to ${fmt(c.rate_hi, true)})`,
-    `usual p ${pval(c.p_naive)} · without stickiness p ${pval(c.p_honest)} · φ ${fmt(c.phi, false, 2)}`,
-    `usual: ${c.naive ? 'trend' : 'no'} · stickiness removed: ${c.pw ? 'trend' : 'no'} · honest: ${c.honest ? 'trend' : 'not proven'}`,
+    `${word(c)} ${howMuch(c.rate, atlas.units, first, last, null)}`,
+    `95% range ${rate(c.rate_lo)} to ${rate(c.rate_hi)} per decade · φ ${fmt(c.phi, false, 2)}`,
+    `${STAGE.usual}: ${c.naive ? 'trend' : 'no trend'} (p ${pval(c.p_naive)})`,
+    `${STAGE.pw}: ${c.pw ? 'trend' : 'no trend'} (p ${pval(c.p_honest)})`,
+    `${STAGE.honest}, map rule: ${c.honest ? 'trend is real' : 'not proven'}`,
   ]
 }
 
@@ -98,13 +103,14 @@ function Legend({ layer, stage, atlas, rateMax }) {
     const s = STAGES.find((x) => x.id === stage)
     return (
       <ul className="legend-row" aria-label="Legend">
-        <li><span className="swatch" style={{ background: s.color }} />{s.label}: trend at p &lt; 0.05{stage === 'fdr' ? ', after false-discovery control (10%)' : ''}</li>
-        <li><span className="swatch" style={{ background: '#1f2b36' }} />no trend shown by this test</li>
+        <li><span className="swatch" style={{ background: s.color }} />{s.label}: {stage === 'fdr' ? 'trend is real' : 'trend at p < 0.05'}</li>
+        <li><span className="swatch" style={{ background: '#1f2b36' }} />{stage === 'fdr' ? 'not proven' : 'no trend shown by this test'}</li>
+        {stage === 'fdr' && <li className="rule">{RULE.map}</li>}
       </ul>
     )
   }
   const spec = {
-    rate: { bg: 'linear-gradient(90deg,#cc79a7,#2a3540,#009e73)', lo: `${fmt(-rateMax, true)}`, hi: `${fmt(rateMax, true)} ${atlas.units}/decade`, note: `Faint squares: no trend by the ${STAGES.find((x) => x.id === stage).label.toLowerCase()}.` },
+    rate: { bg: 'linear-gradient(90deg,#cc79a7,#2a3540,#009e73)', lo: rate(-rateMax), hi: `${rate(rateMax)} ${atlas.units}/decade`, note: `Faint squares: no trend by the ${STAGES.find((x) => x.id === stage).label.toLowerCase()}.` },
     phi: { bg: 'linear-gradient(90deg,#1f2b36,#f0e442)', lo: 'φ 0', hi: 'φ 1', note: 'How much each month resembles the last (lag-1 autocorrelation of the detrended anomalies).' },
     coverage: { bg: 'linear-gradient(90deg,#f0e442,#2a3540)', lo: '80% of months', hi: '100%', note: 'Share of months with data. Points under 80% are not tested.' },
   }[layer]
@@ -115,21 +121,6 @@ function Legend({ layer, stage, atlas, rateMax }) {
       <span className="ramp-note">{spec.note}</span>
     </div>
   )
-}
-
-function Fingerprint({ point, current }) {
-  const [cell, setCell] = useState(null)
-  const [err, setErr] = useState('')
-  useEffect(() => {
-    let live = true
-    setCell(null)
-    setErr('')
-    api.cell(point.lat, point.lon).then((c) => live && setCell(c)).catch((e) => live && setErr(e.message))
-    return () => { live = false }
-  }, [point.lat, point.lon])
-  if (err) return <p className="small">{err}</p>
-  if (!cell) return <p className="small">Loading the other variables at this point…</p>
-  return <FingerprintTable cell={cell} current={current} />
 }
 
 export default function AtlasView({ onPick }) {
@@ -148,6 +139,8 @@ export default function AtlasView({ onPick }) {
   const [years, setYears] = useState(null)
   const [year, setYear] = useState(null)
   const [playing, setPlaying] = useState(false)
+  // the picked point's full monthly record: all five variables, the 1981-2010 mean, the card's bars
+  const [point, setPoint] = useState({ key: '', cell: null, err: '' })
   const opened = useRef(false)
 
   useEffect(() => {
@@ -187,6 +180,15 @@ export default function AtlasView({ onPick }) {
     if (picked) { q.set('lat', picked.lat); q.set('lon', picked.lon) }
     window.history.replaceState(null, '', `?${q}${window.location.hash}`)
   }, [varId, stage, layer, picked])
+
+  useEffect(() => {
+    if (!picked) return
+    const key = `${picked.lat},${picked.lon}`
+    let live = true
+    api.cell(picked.lat, picked.lon).then((c) => live && setPoint({ key, cell: c, err: '' }))
+      .catch((e) => live && setPoint({ key, cell: null, err: e.message }))
+    return () => { live = false }
+  }, [picked])
 
   useEffect(() => {
     if (layer !== 'years' || !varId) return
@@ -249,11 +251,16 @@ export default function AtlasView({ onPick }) {
   async function card() {
     setNote('Drawing the card…')
     try {
-      const record = await api.cell(picked.lat, picked.lon).then((c) => c.vars[atlas.id]).catch(() => null)
-      await verdictCard({ atlas, cell: picked, record, link: window.location.href })
+      const record = pointCell?.vars[atlas.id] ?? null
+      await verdictCard({ atlas, cell: picked, record, mean: pointMean, link: window.location.href })
       setNote('Verdict card saved as a PNG.')
     } catch (e) { setNote(`Could not draw the card: ${e.message}`) }
   }
+
+  const pointKey = picked ? `${picked.lat},${picked.lon}` : ''
+  const pointCell = point.key === pointKey ? point.cell : null
+  const pointRec = pointCell && atlas ? fromCell(pointCell, atlas.id) : null
+  const pointMean = pointRec ? baseMean(pointRec.dates, pointRec.values) : null
 
   const rateMax = useMemo(() => {
     if (!atlas) return 1
@@ -375,18 +382,22 @@ export default function AtlasView({ onPick }) {
             <span className="leader" aria-hidden="true" />
             <p className="note">
               <strong>{deg(picked.lat, picked.lon)}</strong>, grid point (value at this spot, not a 5° average).{' '}
-              {picked.rate > 0 ? atlas.rising : atlas.falling} {fmt(picked.rate, true)} {atlas.units} per decade, 95% range{' '}
-              {fmt(picked.rate_lo, true)} to {fmt(picked.rate_hi, true)}. Stickiness φ = {fmt(picked.phi, false, 2)}.
+              {picked.rate > 0 ? atlas.rising : atlas.falling}{' '}
+              {howMuch(picked.rate, atlas.units, `${atlas.years[0]}-01`, `${atlas.years[1]}-12`, pointMean)}. 95% range{' '}
+              {rate(picked.rate_lo)} to {rate(picked.rate_hi)} per decade. Stickiness φ = {fmt(picked.phi, false, 2)}.
             </p>
             <dl className="stages">
-              <div className="u"><dt>Usual</dt><dd>{picked.naive ? 'trend' : 'no trend'}<span>p {pval(picked.p_naive)}</span></dd></div>
-              <div><dt>No stickiness</dt><dd>{picked.pw ? 'trend' : 'no trend'}<span>p {pval(picked.p_honest)}</span></dd></div>
-              <div className="h"><dt>Honest</dt><dd>{picked.honest ? 'trend is real' : 'not proven'}<span>FDR p* {pval(atlas.fdr_threshold)}</span></dd></div>
+              <div className="u"><dt>{STAGE.usual}</dt><dd>{picked.naive ? 'trend' : 'no trend'}<span>p {pval(picked.p_naive)}</span></dd></div>
+              <div><dt>{STAGE.pw}</dt><dd>{picked.pw ? 'trend' : 'no trend'}<span>p {pval(picked.p_honest)}</span></dd></div>
+              <div className="h"><dt>{STAGE.honest}</dt><dd>{picked.honest ? 'trend is real' : 'not proven'}<span>needs p ≤ {pval(atlas.fdr_threshold)}</span></dd></div>
             </dl>
+            <p className="small rule">{RULE.map}</p>
             {!picked.honest && picked.more_years > 0 && (
               <p className="small">At this rate and stickiness, about {Math.ceil(picked.more_years)} more years of data would be needed.</p>
             )}
-            <Fingerprint point={picked} current={atlas.id} />
+            {point.key === pointKey && point.err ? <p className="small">{point.err}</p>
+              : pointCell ? <FingerprintTable cell={pointCell} current={atlas.id} rule="map" ruleNote={false} />
+                : <p className="small">Loading the other variables at this point…</p>}
             <div className="actions">
               <button className="link" onClick={() => onPick?.({ lat: picked.lat, lon: picked.lon, param: atlas.id })}>
                 Open the full record
@@ -417,8 +428,8 @@ export default function AtlasView({ onPick }) {
         )}
         <p className="credit">
           Drag to turn the globe · click a square to read it · NASA POWER monthly data, {atlas?.years.join('–')}, one
-          sample point per 5° · usual = Mann-Kendall p &lt; 0.05 · honest = pre-whitened Mann-Kendall, false
-          discovery rate 10% across all points
+          sample point per 5° · {STAGE.usual}: Mann-Kendall p &lt; 0.05 · {STAGE.pw}: the same test after
+          pre-whitening · {STAGE.honest}: map rule, false discovery rate 10% across all points
         </p>
       </div>
     </div>

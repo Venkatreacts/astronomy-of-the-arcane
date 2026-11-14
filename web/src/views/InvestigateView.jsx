@@ -3,7 +3,9 @@ import { api } from '../api'
 import SeriesChart from '../components/SeriesChart'
 import PlacePicker from '../components/PlacePicker'
 import Fingerprint from '../components/Fingerprint'
-import { deg, download, fmt, km, nearestAtlasPoint, peq, pval } from '../lib/format'
+import { Stages } from '../components/Verdict'
+import { baseMean, deg, download, fmt, howMuch, km, nearestAtlasPoint, peq, pval, rate } from '../lib/format'
+import { RULE, STAGE } from '../lib/stages'
 import { fromCell, fromLive, toCSV, toJSON } from '../lib/record'
 
 const PLACES = [
@@ -33,65 +35,35 @@ function Facts({ r }) {
       <div><dt>Place</dt><dd>{deg(r.lat, r.lon)}<span>{r.kind === 'atlas' ? 'atlas sample point' : 'NASA POWER grid cell nearest these coordinates'}</span></dd></div>
       <div><dt>Observed</dt><dd>{r.dates[0]} to {r.dates[r.dates.length - 1]}<span>{r.n} of {r.months} months present ({((100 * r.n) / r.months).toFixed(0)}%)</span></dd></div>
       <div><dt>Seasons</dt><dd>{fmt(Math.min(...clim))} to {fmt(Math.max(...clim))} {r.units}<span>lowest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(lo * 3, lo * 3 + 3)}, highest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(hi * 3, hi * 3 + 3)}; removed before testing</span></dd></div>
-      <div><dt>Rate</dt><dd>{fmt(r.honest.slope_per_year * 10, true)} {r.units} per decade<span>{ci ? `95% range ${fmt(ci[0] * 10, true)} to ${fmt(ci[1] * 10, true)}` : 'no range available'} (Sen's slope)</span></dd></div>
+      <div><dt>Change</dt><dd>{howMuch(r.honest.slope_per_year * 10, r.units, r.dates[0], r.dates[r.dates.length - 1], baseMean(r.dates, r.values))}<span>{ci ? `95% range ${rate(ci[0] * 10)} to ${rate(ci[1] * 10)} per decade` : 'no range available'} (Sen's slope)</span></dd></div>
       <div><dt>Stickiness</dt><dd>φ = {fmt(r.noise.phi, false, 2)}<span>how much each month's anomaly resembles the last; noise σ = {fmt(r.noise.sigma_n)} {r.units}</span></dd></div>
     </dl>
   )
 }
 
-function Stages({ r }) {
-  const fdr = r.fdr
-  return (
-    <dl className="verdicts three">
-      <div className="vrow u">
-        <dt>1 · Usual test</dt>
-        <dd><span className="vword">{r.naive.significant ? 'Trend' : 'No trend'}</span>
-          <span className="small">Mann-Kendall on the anomalies · {peq(r.naive.p)}</span></dd>
-      </div>
-      <div className="vrow pw">
-        <dt>2 · Stickiness removed</dt>
-        <dd><span className="vword">{r.honest.significant ? 'Trend' : 'No trend'}</span>
-          <span className="small">same test after pre-whitening · {peq(r.honest.p)}</span></dd>
-      </div>
-      <div className="vrow h">
-        <dt>3 · Honest verdict</dt>
-        <dd>
-          {fdr
-            ? <><span className="vword">{fdr.significant ? 'Trend is real' : 'Not proven'}</span>
-              <span className="small">stage 2 plus false-discovery control across all atlas points (p must be ≤ {pval(fdr.threshold)})</span></>
-            : <><span className="vword">{r.honest.significant ? 'Trend is real' : 'Not proven'}</span>
-              <span className="small">one place, one test: stage 2 is the honest verdict (no multiple-testing correction needed)</span></>}
-        </dd>
-      </div>
-    </dl>
-  )
-}
-
 function Explain({ r }) {
-  const honest = r.fdr ? r.fdr.significant : r.honest.significant
   const more = r.years_more_needed
+  // On the globe the same point is judged by the map rule; say so whenever that answer differs.
+  const map = r.fdr && r.fdr.significant !== r.honest.significant && (
+    <p className="note">
+      On the globe this point is one of all the atlas points tested together, so the map rule applies there and the
+      answer is {r.fdr.significant ? 'trend is real' : 'not proven'} (a point needs p ≤ {pval(r.fdr.threshold)}). {RULE.map}
+    </p>
+  )
+  let main = null
   if (r.naive.significant && !r.honest.significant) {
-    return (
+    main = (
       <p className="callout" role="note">
         The tests disagree. With φ = {fmt(r.noise.phi, false, 2)}, a run of warm (or wet) months is partly one event
         counted many times, so the usual test sees more evidence than there is. Once that is removed the change is
         within what noise alone produces. {more > 0 && `At this rate it would take about ${Math.ceil(more)} more years to tell.`}
       </p>
     )
+  } else if (!r.honest.significant && more > 0) {
+    main = <p className="small">Not detectable yet. At this rate and stickiness, about {Math.ceil(more)} more years of data
+      would give a 90% chance of detection (Weatherhead et al. 1998; in our simulations the honest verdict reached 85–90%).</p>
   }
-  if (r.honest.significant && r.fdr && !r.fdr.significant) {
-    return (
-      <p className="callout" role="note">
-        On its own this place passes. But the atlas tests {r.name.toLowerCase()} at every sample point, and among
-        that many tests some pass by luck; this p-value is not small enough to stand out from them.
-      </p>
-    )
-  }
-  if (!honest && more > 0) {
-    return <p className="small">Not detectable yet. At this rate and stickiness, about {Math.ceil(more)} more years of data
-      would give a 90% chance of detection (Weatherhead et al. 1998; in our simulations the honest test reached 85–90%).</p>
-  }
-  return null
+  return <>{main}{map}</>
 }
 
 function Halves({ halves, units }) {
@@ -99,13 +71,13 @@ function Halves({ halves, units }) {
   return (
     <table className="halves">
       <caption>Does it hold in both halves of the record?</caption>
-      <thead><tr><th scope="col">Years</th><th scope="col">Rate per decade</th><th scope="col">95% range</th><th scope="col">Stickiness removed</th></tr></thead>
+      <thead><tr><th scope="col">Years</th><th scope="col">Rate per decade</th><th scope="col">95% range</th><th scope="col">{STAGE.pw}</th></tr></thead>
       <tbody>
         {halves.map((h) => (
           <tr key={h.years[0]}>
             <th scope="row">{h.years[0]}–{h.years[1]}</th>
-            <td>{fmt(h.rate, true)} {units}</td>
-            <td>{fmt(h.rate_ci[0], true)} to {fmt(h.rate_ci[1], true)}</td>
+            <td>{rate(h.rate)} {units}</td>
+            <td>{rate(h.rate_ci[0])} to {rate(h.rate_ci[1])}</td>
             <td>{h.p_honest < 0.05 ? 'trend' : 'no trend'}, {peq(h.p_honest)}</td>
           </tr>
         ))}
@@ -252,7 +224,7 @@ export default function InvestigateView({ pick }) {
           <SeriesChart series={series} toggle />
           <div className="workspace">
             <div>
-              <Stages r={r} />
+              <Stages naive={r.naive} pw={r.honest} />
               <Explain r={r} />
               <Halves halves={r.halves} units={r.units} />
             </div>
