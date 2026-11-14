@@ -48,6 +48,15 @@ def test_static_cases_match_the_index_and_current_engine():
             assert "slope_ci_per_year" in s["analysis"]["honest"]  # re-analysed with the current engine
 
 
+def test_params_return_a_definition_when_the_data_session_adds_one(monkeypatch):
+    monkeypatch.setattr(m, "PARAMS", {
+        "RH2M": ("Relative humidity at 2 m", "%", "How much water vapour the air holds, as a percent of the most it could hold."),
+        "T2M": ("Air temperature at 2 m", "degC")})  # old two-entry form still works
+    out = {p["id"]: p for p in client.get("/api/params").json()}
+    assert out["RH2M"]["definition"].startswith("How much water vapour")
+    assert out["T2M"]["definition"] is None
+
+
 def test_point_returns_the_confidence_interval(monkeypatch):
     m._point.cache_clear()
     monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series())

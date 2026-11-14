@@ -40,6 +40,7 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 
 - [ ] **Parts 1 + 5. One-line plain definition for every variable.** Add a third entry to each item in `PARAMS` (`backend/data/fetch_power.py:14-20`), return it from `/api/params`, show it under the variable dropdown.
   Example: "Relative humidity: how much water vapour the air holds, as a percent of the most it could hold."
+  Status (Venkat): Parts 4 + 5 half done: `/api/params` returns `definition` (the optional third entry of each `PARAMS` item, `None` if absent) and the page shows it under the dropdown. Not ticked: waiting on the Part 1 half, the text itself in `fetch_power.py`. Nothing else is needed after that.
 - [ ] **Part 5. Pick a place on a map.** Today the place is four Indian cities or typed latitude and longitude. Add a click-to-pick world map. Plotly's `scattergeo` can do it with no new library, but check it is in the Plotly bundle we ship.
   Done when: clicking the map fills latitude and longitude and runs the investigation.
 - [ ] **Part 5. Show the confidence interval** on both verdict cards: `Rate +0.065 degC per decade (-0.004 to +0.13)`.

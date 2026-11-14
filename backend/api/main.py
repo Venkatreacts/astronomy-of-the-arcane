@@ -58,7 +58,9 @@ def health():
 
 @app.get("/api/params")
 def params():
-    return [{"id": k, "name": v[0], "units": v[1]} for k, v in PARAMS.items()]
+    # A plain one-line definition is the optional third entry of each PARAMS item (added by the data session).
+    return [{"id": k, "name": v[0], "units": v[1], "definition": v[2] if len(v) > 2 else None}
+            for k, v in PARAMS.items()]
 
 
 @app.get("/api/cases")

@@ -60,6 +60,9 @@ export default function InvestigateView() {
         </label>
         <button onClick={() => run()} disabled={busy}>{busy ? 'Fetching NASA data…' : 'Investigate'}</button>
       </div>
+      {params.find((p) => p.id === form.param)?.definition && (
+        <p className="card-small">{params.find((p) => p.id === form.param).definition}</p>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       {data && (
         <>
