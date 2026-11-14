@@ -1,16 +1,26 @@
-"""AI Detective endpoint. Needs ANTHROPIC_API_KEY (env var or backend/.env); the rest of the app works without it."""
+"""AI Detective endpoint.
+
+Runs on Gemini when GEMINI_API_KEY is set, else on Claude when ANTHROPIC_API_KEY is set (env var or backend/.env).
+Live questions need the header X-Demo-Passcode to equal DETECTIVE_PASSCODE, so a public link cannot use up the key.
+The rest of the app works without any of this.
+"""
 
 from __future__ import annotations
 
+import hmac
+import os
 import pathlib
 
-from fastapi import APIRouter, HTTPException
+import requests
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from trendlab.agent import ask, load_env_file
+from trendlab.agent import ask, ask_gemini, load_env_file
 
 load_env_file(pathlib.Path(__file__).resolve().parents[1] / ".env")
 router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+NOT_SET_UP = "The live AI Detective is not set up on this server. The saved answers still work."
 
 
 class Question(BaseModel):
@@ -18,18 +28,36 @@ class Question(BaseModel):
 
 
 @router.post("")
-def detective(q: Question):
+def detective(q: Question, x_demo_passcode: str = Header("")):
+    passcode = os.environ.get("DETECTIVE_PASSCODE", "")
+    if not passcode:
+        raise HTTPException(503, NOT_SET_UP)
+    if not hmac.compare_digest(x_demo_passcode.encode(), passcode.encode()):
+        raise HTTPException(401, "Wrong passcode. Live questions are for the team's demo; the saved answers are open.")
+
+    if os.environ.get("GEMINI_API_KEY"):
+        try:
+            return ask_gemini(q.question)
+        except requests.HTTPError as exc:
+            code = exc.response.status_code
+            if code == 429:
+                raise HTTPException(429, "Too many questions right now. Try again in a minute.") from exc
+            if code in (401, 403):
+                raise HTTPException(503, NOT_SET_UP) from exc
+            raise HTTPException(502, f"AI service error ({code}).") from exc
+        except requests.RequestException as exc:
+            raise HTTPException(502, "Could not reach the AI service.") from exc
+
     import anthropic
 
-    not_set_up = "AI Detective is not set up: add ANTHROPIC_API_KEY to backend/.env and restart the API."
     try:
         return ask(q.question)
     except TypeError as exc:  # the SDK raises TypeError when no credential is configured at all
         if "authentication" in str(exc).lower():
-            raise HTTPException(503, not_set_up) from exc
+            raise HTTPException(503, NOT_SET_UP) from exc
         raise
     except anthropic.AuthenticationError as exc:
-        raise HTTPException(503, not_set_up) from exc
+        raise HTTPException(503, NOT_SET_UP) from exc
     except anthropic.RateLimitError as exc:
         raise HTTPException(429, "Too many questions right now. Try again in a minute.") from exc
     except anthropic.APIConnectionError as exc:

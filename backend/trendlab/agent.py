@@ -14,19 +14,47 @@ import pathlib
 from typing import Any, Callable
 
 MODEL = "claude-opus-5-5"
+GEMINI_MODEL = "gemini-3.8-flash"  # override with env GEMINI_MODEL
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_TOOL_CALLS = 6
 MAX_TURNS = 10
+GEMINI_TURNS = 4  # each turn is one model call on a public demo
+REPO = pathlib.Path(__file__).resolve().parents[2]
 
 SYSTEM = """You are the Noise Trap Detective, helping high school and college students investigate trends in NASA Earth data.
 
 Rules:
-- Only state numbers that appear in a tool result in this conversation. Never estimate or recall numbers yourself.
+- Only state numbers that appear in a tool result in this conversation or in the Notes below. Never estimate or recall numbers yourself.
 - Prefer the honest verdict (pre-whitened test, FDR, cluster permutation p-value) over the usual-method verdict, and explain the difference when they disagree.
 - Never claim what caused a trend. You may say what is happening together and suggest what a scientist might check next.
 - Say when the data cannot answer the question (wrong variable, box too large, not enough years), and what would help.
 - Data comes from NASA POWER (MERRA-2-based reanalysis, about 0.5 degree pixels). Mention this limit once.
 - Be brief: a short answer first (2-4 sentences), then up to 5 bullet points of evidence, then one "What to check next" line.
-- Use at most 6 tool calls. Regional scans need boxes with sides of 2 to 5 degrees."""
+- Use at most 6 tool calls. Regional scans only cover the pre-scanned regions named in the scan_region tool."""
+
+
+def system_prompt() -> str:
+    """SYSTEM plus our own study notes and a summary of every saved result, so answers build on checked work."""
+    parts = [SYSTEM]
+    notes = REPO / "docs" / "detective-notes.md"
+    if notes.is_file():
+        parts.append("Notes (written and checked by the team):\n" + notes.read_text(encoding="utf-8"))
+    data = REPO / "web" / "public" / "data"
+    saved = []
+    for path in sorted((data / "scans").glob("*.json")) + sorted((data / "cases").glob("*.json")):
+        d = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(d, dict):
+            continue  # index.json is a list
+        for line in d.get("findings", []):
+            saved.append(f"- [{path.stem} region scan] {line}")
+        for s in d.get("series", []):
+            a = s["analysis"]
+            saved.append(f"- [{d.get('title', path.stem)}] {s['name']}: {a['honest']['slope_per_year'] * 10:+.3g} "
+                         f"{s['units']} per decade, usual test p = {a['naive']['p']:.3f}, "
+                         f"honest test p = {a['honest']['p']:.3f}.")
+    if saved:
+        parts.append("Saved results from this project (NASA POWER, 1981-2025):\n" + "\n".join(saved))
+    return "\n\n".join(parts)
 
 
 def _tools_schema() -> list[dict]:
@@ -45,9 +73,10 @@ def _tools_schema() -> list[dict]:
                               "description": "Variable id from list_variables, e.g. T2M or PRECTOTCORR."}},
                              ["lat", "lon", "variable"])},
         {"name": "scan_region", "strict": True,
-         "description": ("Scan a box (sides 2-5 degrees) across 5 NASA variables. Returns the number of tests, how many the "
-                         "usual method calls significant, how many survive FDR, trend clusters that pass a 199-permutation "
-                         "test, compound patterns, and k-means trend regimes. New boxes take about 30 seconds."),
+         "description": ("Scan a region across 5 NASA variables. Returns the number of tests, how many the usual method "
+                         "calls significant, how many pass FDR, trend clusters that pass a 199-permutation test, compound "
+                         "patterns, and k-means trend regimes. Only these pre-scanned regions exist; a box is snapped to "
+                         "the one it overlaps most: " + _preset_list() + "."),
          "input_schema": obj({"lat_min": num, "lat_max": num, "lon_min": num, "lon_max": num},
                              ["lat_min", "lat_max", "lon_min", "lon_max"])},
         {"name": "noise_check", "strict": True,
@@ -57,9 +86,15 @@ def _tools_schema() -> list[dict]:
     ]
 
 
+def _preset_list() -> str:
+    from api.scan_routes import PRESETS
+    return "; ".join(f"{p['name']} (lat {p['bbox'][0]} to {p['bbox'][1]}, lon {p['bbox'][2]} to {p['bbox'][3]})"
+                     for p in PRESETS)
+
+
 def default_executor() -> Callable[[str, dict], Any]:
     """Real tool implementations, imported lazily so tests can run without network access."""
-    from api.scan_routes import run_scan
+    from api.scan_routes import run_scan, snap_to_preset
     from fetch_power import PARAMS, get_monthly_point  # backend/data on sys.path via api.main
     from trendlab import analyze_series, noise_trap
     from trendlab.scan import SCAN_VARS
@@ -78,12 +113,17 @@ def default_executor() -> Callable[[str, dict], Any]:
                     "month_to_month_stickiness_phi": a["noise"]["phi"],
                     "years_of_data": a["record_years"], "more_years_needed_to_detect": a["years_more_needed"]}
         if name == "scan_region":
-            r = run_scan((args["lat_min"], args["lat_max"], args["lon_min"], args["lon_max"]))
+            # a new box takes about a minute, so the detective only reads the pre-scanned regions
+            preset = snap_to_preset((args["lat_min"], args["lat_max"], args["lon_min"], args["lon_max"]))
+            if preset is None:
+                raise ValueError("No pre-scanned region overlaps this box. Available: " + _preset_list())
+            r = run_scan(preset["bbox"])
             clusters = [{"variable": info["name"], **{k: c[k] for k in ("direction", "size", "p", "center_lat",
                                                                          "center_lon", "mean_rate_per_decade")},
                          "units": info["units"]}
                         for info in r["variables"].values() for c in info["clusters"] if c["significant"]]
-            return {"summary": r["summary"], "significant_clusters": clusters,
+            return {"region": preset["name"], "box": preset["bbox"], "summary": r["summary"],
+                    "significant_clusters": clusters,
                     "compound_patterns": [c["text"] for c in r["compounds"][:5]],
                     "regimes": [{"label": g["label"], "pixels": g["pixels"]} for g in r["regimes"]["regimes"]],
                     "findings": r["findings"], "caveats": r["caveats"]}
@@ -120,7 +160,7 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
     """Run the detective loop. Returns {answer, trace, stop_reason, model}."""
     if client is None:
         import anthropic
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(timeout=40, max_retries=1)
     executor = executor or default_executor()
     messages: list[dict] = [{"role": "user", "content": question}]
     trace: list[dict] = []
@@ -131,7 +171,7 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
         response = client.beta.messages.create(
             model=MODEL,
             max_tokens=16000,
-            system=SYSTEM,
+            system=system_prompt(),
             tools=_tools_schema(),
             messages=messages,
             output_config={"effort": "medium"},
@@ -172,3 +212,65 @@ def ask(question: str, client=None, executor: Callable[[str, dict], Any] | None 
         answer = "\n".join(b.text for b in response.content if b.type == "text").strip()
     return {"answer": answer, "trace": [{**t, "result_preview": _summarise(t["result"])} for t in trace],
             "stop_reason": response.stop_reason, "model": getattr(response, "model", MODEL)}
+
+
+def _gemini_tools() -> list[dict]:
+    """The same four tools as Gemini function declarations (it rejects additionalProperties and empty objects)."""
+    out = []
+    for t in _tools_schema():
+        fn = {"name": t["name"], "description": t["description"]}
+        if t["input_schema"]["properties"]:
+            fn["parameters"] = {k: v for k, v in t["input_schema"].items() if k != "additionalProperties"}
+        out.append(fn)
+    return [{"function_declarations": out}]
+
+
+def ask_gemini(question: str, post=None, executor: Callable[[str, dict], Any] | None = None) -> dict:
+    """Same loop and return shape as ask(), on the Gemini API. Needs GEMINI_API_KEY."""
+    if post is None:
+        import requests
+        post = requests.post
+    executor = executor or default_executor()
+    model = os.environ.get("GEMINI_MODEL", GEMINI_MODEL)
+    contents: list[dict] = [{"role": "user", "parts": [{"text": question}]}]
+    trace: list[dict] = []
+    calls = 0
+    answer, stop = "", "max_turns"
+
+    for _ in range(GEMINI_TURNS):
+        r = post(GEMINI_URL.format(model=model), timeout=40,
+                 headers={"x-goog-api-key": os.environ.get("GEMINI_API_KEY", "")},
+                 json={"system_instruction": {"parts": [{"text": system_prompt()}]}, "contents": contents,
+                       "tools": _gemini_tools(), "generationConfig": {"maxOutputTokens": 4000, "temperature": 0.2}})
+        r.raise_for_status()
+        candidates = r.json().get("candidates") or [{}]
+        content = candidates[0].get("content") or {"role": "model", "parts": []}
+        stop = candidates[0].get("finishReason", "no_response")
+        parts = content.get("parts", [])
+        answer = "\n".join(p["text"] for p in parts if "text" in p and not p.get("thought")).strip()
+        fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+        if not fn_calls:
+            break
+        contents.append(content)  # sent back unchanged: Gemini needs its own thought signatures returned
+        results = []
+        for fc in fn_calls:
+            calls += 1
+            args = dict(fc.get("args") or {})
+            if calls > MAX_TOOL_CALLS:
+                out, ok = {"error": "Tool budget used up. Answer now with the evidence you have."}, False
+            else:
+                try:
+                    out, ok = executor(fc["name"], args), True
+                except Exception as exc:  # report tool failures to the model instead of crashing
+                    out, ok = {"error": str(exc)}, False
+            trace.append({"tool": fc["name"], "input": args, "ok": ok, "result": out})
+            reply = {"name": fc["name"], "response": json.loads(json.dumps({"result": out}, default=str))}
+            if "id" in fc:
+                reply["id"] = fc["id"]
+            results.append({"functionResponse": reply})
+        contents.append({"role": "user", "parts": results})
+
+    if not answer:
+        answer = "The detective could not finish this question. Try a narrower one."
+    return {"answer": answer, "trace": [{**t, "result_preview": _summarise(t["result"])} for t in trace],
+            "stop_reason": stop, "model": model}

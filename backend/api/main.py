@@ -6,8 +6,10 @@ Docs: http://localhost:8000/docs
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
+import os
 import pathlib
 import sys
 from functools import lru_cache
@@ -26,11 +28,21 @@ from trendlab import analyze_series  # noqa: E402
 
 CASES = BACKEND / "data" / "cases"
 
-app = FastAPI(title="Noise Trap API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
-
 from api.scan_routes import router as scan_router  # noqa: E402
 from api.agent_routes import router as agent_router  # noqa: E402
+from api.mcp_server import http_app as mcp_app, mcp  # noqa: E402
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_app):
+    async with mcp.session_manager.run():  # a mounted app's own startup does not run, so start MCP here
+        yield
+
+
+app = FastAPI(title="Noise Trap API", version="0.1.0", lifespan=lifespan)
+# Browsers may call the API only from our own web app. ALLOWED_ORIGINS is a comma-separated list (the Vercel URL).
+ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
 app.include_router(scan_router)
 app.include_router(agent_router)
 
@@ -116,3 +128,6 @@ def noise(phi: float = Query(0.5, ge=0.0, le=0.9), trend: float = Query(0.0)):
     if not path.is_file():
         raise HTTPException(404, "Noise maps not built yet: run python scripts/build_static.py")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+app.mount("/", mcp_app)  # serves /mcp; mounted last so every /api route above wins

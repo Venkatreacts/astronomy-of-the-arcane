@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 import pytest
-from statsmodels.stats.multitest import multipletests
+from scipy.stats import false_discovery_control
 
 from trendlab import (analyze_series, ar1_noise_cube, deseasonalize, fdr_bh, noise_params,
                       noise_trap, trend_test, years_to_detect)
@@ -76,11 +76,11 @@ def test_trend_test_needs_enough_data():
         trend_test(np.arange(10.0))
 
 
-def test_fdr_matches_statsmodels():
+def test_fdr_matches_scipy():
     rng = np.random.default_rng(3)
     p = np.concatenate([rng.uniform(0, 0.002, 30), rng.uniform(0, 1, 300)])
     ours, _ = fdr_bh(p, 0.10)
-    ref = multipletests(p, alpha=0.10, method="fdr_bh")[0]
+    ref = false_discovery_control(p, method="bh") <= 0.10
     assert np.array_equal(ours, ref)
 
 
