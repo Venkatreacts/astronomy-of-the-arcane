@@ -41,8 +41,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [ ] **Parts 1 + 5. One-line plain definition for every variable.** Add a third entry to each item in `PARAMS` (`backend/data/fetch_power.py:14-20`), return it from `/api/params`, show it under the variable dropdown.
   Example: "Relative humidity: how much water vapour the air holds, as a percent of the most it could hold."
   Status (Venkat): Parts 4 + 5 half done: `/api/params` returns `definition` (the optional third entry of each `PARAMS` item, `None` if absent) and the page shows it under the dropdown. Not ticked: waiting on the Part 1 half, the text itself in `fetch_power.py`. Nothing else is needed after that.
-- [ ] **Part 5. Pick a place on a map.** Today the place is four Indian cities or typed latitude and longitude. Add a click-to-pick world map. Plotly's `scattergeo` can do it with no new library, but check it is in the Plotly bundle we ship.
+- [x] **Part 5. Pick a place on a map.** Today the place is four Indian cities or typed latitude and longitude. Add a click-to-pick world map. Plotly's `scattergeo` can do it with no new library, but check it is in the Plotly bundle we ship.
   Done when: clicking the map fills latitude and longitude and runs the investigation.
+  Checked: a map click (sent as Plotly's own click event; the browser pane could not draw for a mouse click) filled 50 / 11.25 and ran the investigation in about 1 s. `scattergeo` is in the bundle we ship. Clicks snap to an invisible 2.5-degree grid (Plotly only reports clicks on points); the boxes allow fine-tuning.
 - [ ] **Part 5. Show the confidence interval** on both verdict cards: `Rate +0.065 degC per decade (-0.004 to +0.13)`.
 - [ ] **Part 1. Case 1 data, NO2.** In Giovanni, make two "Time Series, Area-Averaged" plots of OMNO2d tropospheric column (cloud-screened), 2005-01 to 2025-12, boxes 75,22,88,30 (India) and 113,34,120,40 (China). Download both CSVs, then
   `python data/build_cases.py no2 --india raw/giovanni_india.csv --china raw/giovanni_china.csv`.

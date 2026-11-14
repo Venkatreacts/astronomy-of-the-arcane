@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import SeriesChart from '../components/SeriesChart'
 import Verdict from '../components/Verdict'
+import PlacePicker from '../components/PlacePicker'
 
 const PLACES = [
   { name: 'Chennai', lat: 13.08, lon: 80.27 },
@@ -60,6 +61,13 @@ export default function InvestigateView() {
         </label>
         <button onClick={() => run()} disabled={busy}>{busy ? 'Fetching NASA data…' : 'Investigate'}</button>
       </div>
+      <PlacePicker lat={form.lat} lon={form.lon} onPick={(lat, lon) => {
+        if (busy) return
+        const next = { ...form, lat: Number(lat.toFixed(2)), lon: Number(lon.toFixed(2)) }
+        setForm(next)
+        run(next)
+      }} />
+      <p className="card-small">Click anywhere on the map to investigate that place (snaps to a 2.5° grid; fine-tune with the boxes).</p>
       {params.find((p) => p.id === form.param)?.definition && (
         <p className="card-small">{params.find((p) => p.id === form.param).definition}</p>
       )}
