@@ -28,8 +28,9 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [x] **Parts 4 + 5. Pre-compute the Noise Trap maps** (Audit #3). A script writes the ten maps (phi 0.0 to 0.9, 20 x 20, seed 0) as JSON under `web/public/data/noise/`. The web app loads those files instead of calling `/api/noise-trap`.
   Done when: clicking "Run on pure noise" answers in under 1 s with the API stopped.
   Checked: 59 ms with the API stopped. Script: `backend/scripts/build_static.py`. `/api/noise-trap` now only serves these files (the cache and warm-up thread are gone); the AI Detective's noise check reads them too.
-- [ ] **Parts 2 + 5. Positive control** (Audit #4). `noise_trap(..., trend_sd_per_decade=0.8)` adds a real trend to the left half of the map. Save those ten maps too. Second button: "Now add a real trend".
+- [x] **Parts 2 + 5. Positive control** (Audit #4). `noise_trap(..., trend_sd_per_decade=0.8)` adds a real trend to the left half of the map. Save those ten maps too. Second button: "Now add a real trend".
   Done when: with the trend on, our map is filled on the left half and near empty on the right.
+  Checked (phi 0.5, API stopped): left half 200/200 pixels, right half 10/200. At phi >= 0.8 the honest method loses power (55%, then 0% of the trend half); the page says so when it happens. Full table: `docs/validation.md` section 5.
 - [ ] **Parts 4 + 5. Serve case files as static files.** Put the case JSON (and a small `index.json` list) under `web/public/data/cases/` and load them from there.
   Why: with this and the Noise Trap change, only "Investigate a place" needs a live server. The demo then works with no Wi-Fi, which the plan requires, and the Vercel deploy needs one small function.
   Done when: the Case files tab works with the API stopped.

@@ -51,6 +51,22 @@ Real scans (NASA POWER, 1981-2025, 199 permutations, about 30 s each): Tamil Nad
 Punjab-Haryana 315 tests, 5 clusters pass (rising humidity and rainfall, cooling); Kerala/Western Ghats 261 tests, 5 clusters pass.
 Sunlight is not scanned: it comes on a coarser 1-degree grid, and stretching it would duplicate pixels.
 
+## 5. Noise Trap demo maps, with and without a real trend (20 x 20, 25 years, seed 0)
+
+Built by `backend/scripts/build_static.py`. "Trend" = 0.8 noise SDs per decade added to the left half only.
+
+| Stickiness phi | Pure noise: usual / ours | With trend, usual: trend half / trend-free half | With trend, ours: trend half / trend-free half |
+|---|---|---|---|
+| 0.0 | 6% / 0% | 100% / 8% | 100% / 6% |
+| 0.3 | 12% / 0% | 100% / 13% | 100% / 6% |
+| 0.5 | 21% / 0% | 100% / 24% | 100% / 5% |
+| 0.7 | 36% / 0% | 100% / 41% | 94% / 4% |
+| 0.8 | 46% / 0% | 100% / 54% | 55% / 1% |
+| 0.9 | 64% / 0% | 98% / 68% | 0% / 0% |
+
+Up to phi = 0.7 the honest method finds nearly all of a real trend and stays near 5% where there is none. At phi >= 0.8 it
+loses power: very sticky data needs a longer record. The app says this on screen when it happens.
+
 ## 6. Confidence interval for the rate of change
 `slope_ci_per_year` = Theil-Sen 95% interval on the real month positions, each half widened by
 sqrt((1 + phi) / (1 - phi)) for autocorrelation. This widening is an approximation.

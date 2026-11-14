@@ -64,6 +64,13 @@ def test_slope_with_a_long_gap():
     assert trend_test(x)["slope_per_year"] == pytest.approx(0.12, rel=0.05)
 
 
+def test_positive_control_lights_up_the_trend_half():
+    # Audit #4: show the honest method does say "yes" when a real trend exists.
+    res = noise_trap(n_time=300, ny=10, nx=10, phi=0.5, spatial_sigma=2.0, seed=0, trend_sd_per_decade=0.8)
+    assert res["honest_left_fraction"] > 0.8
+    assert res["honest_right_fraction"] < 0.2
+
+
 def test_trend_test_needs_enough_data():
     with pytest.raises(ValueError):
         trend_test(np.arange(10.0))

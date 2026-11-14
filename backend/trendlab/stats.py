@@ -235,10 +235,21 @@ def ar1_noise_cube(n_time: int, ny: int, nx: int, phi: float, sigma: float = 1.0
 
 def noise_trap(n_time: int = 300, ny: int = 30, nx: int = 30, phi: float = 0.5,
                spatial_sigma: float = 2.0, seed: int | None = 0, alpha: float = 0.05,
-               alpha_fdr: float = 0.10) -> dict:
-    """Run both methods on pure noise. Any 'significant' pixel is a false alarm."""
+               alpha_fdr: float = 0.10, trend_sd_per_decade: float = 0.0) -> dict:
+    """Run both methods on noise. With trend_sd_per_decade = 0 every 'significant' pixel is a
+    false alarm. With a trend (positive control, audit #4), the left half gets a real linear trend
+    of that many noise SDs per decade, so a good method lights up the left half only."""
     cube = ar1_noise_cube(n_time, ny, nx, phi, 1.0, spatial_sigma, seed)
+    half = nx // 2
+    if trend_sd_per_decade:
+        cube[:, :, :half] += (trend_sd_per_decade / 120.0) * np.arange(n_time)[:, None, None]
     res = map_trends(cube, alpha, alpha_fdr)
     res["params"] = {"n_time": n_time, "ny": ny, "nx": nx, "phi": phi,
                      "spatial_sigma": spatial_sigma, "seed": seed}
+    if trend_sd_per_decade:
+        res["params"]["trend_sd_per_decade"] = trend_sd_per_decade
+        for name in ("naive", "honest"):
+            m = res[f"{name}_mask"]
+            res[f"{name}_left_fraction"] = float(m[:, :half].mean())   # real trend: higher is better
+            res[f"{name}_right_fraction"] = float(m[:, half:].mean())  # no trend: lower is better
     return res

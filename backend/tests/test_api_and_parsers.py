@@ -31,6 +31,12 @@ def test_noise_endpoint_serves_the_prebuilt_map_fast():
     assert r.status_code == 200 and r.json() == json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_noise_endpoint_serves_the_positive_control():
+    assert client.get("/api/noise-trap?phi=0.5&trend=0.3").status_code == 400
+    d = client.get("/api/noise-trap?phi=0.5&trend=0.8").json()
+    assert d["honest_left_fraction"] > 0.8 and d["honest_right_fraction"] < 0.2
+
+
 def test_point_returns_the_confidence_interval(monkeypatch):
     m._point.cache_clear()
     monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series())

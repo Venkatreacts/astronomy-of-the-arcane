@@ -2,7 +2,8 @@
 
 Run from backend/:  python scripts/build_static.py   (about 3 minutes)
 
-Writes web/public/data/noise/phi{0.0..0.9}_trend0.0.json: Noise Trap maps (20 x 20, 25 years, seed 0).
+Writes web/public/data/noise/phi{0.0..0.9}_trend{0.0,0.8}.json: Noise Trap maps (20 x 20, 25 years, seed 0);
+trend 0.8 adds a real trend to the left half (positive control).
 This is a separate script on purpose: backend/data/ belongs to the data session.
 """
 
@@ -21,6 +22,7 @@ sys.path.insert(0, str(BACKEND))
 OUT = BACKEND.parent / "web" / "public" / "data"
 
 PHIS = [round(0.1 * i, 1) for i in range(10)]
+TRENDS = [0.0, 0.8]  # 0.8 = positive control: real trend on the left half
 
 
 def clean(o):
@@ -44,20 +46,26 @@ def noise_name(phi: float, trend: float = 0.0) -> str:
     return f"phi{phi:.1f}_trend{trend:.1f}.json"
 
 
-def build_noise() -> None:
+def build_noise(trends=TRENDS) -> None:
     from trendlab import noise_trap
 
     out = OUT / "noise"
     out.mkdir(parents=True, exist_ok=True)
-    for phi in PHIS:
-        res = noise_trap(n_time=300, ny=20, nx=20, phi=phi, seed=0)
-        keep = {k: v for k, v in res.items() if k.endswith("fraction") or k in ("fdr_threshold", "params")}
-        keep["naive_mask"] = res["naive_mask"].astype(int)   # Plotly heatmaps need numbers
-        keep["honest_mask"] = res["honest_mask"].astype(int)
-        (out / noise_name(phi)).write_text(json.dumps(clean(keep)), encoding="utf-8")
-        print(f"noise phi={phi}: usual {res['naive_fraction']:.1%}, honest {res['honest_fraction']:.1%}")
+    for trend in trends:
+        for phi in PHIS:
+            res = noise_trap(n_time=300, ny=20, nx=20, phi=phi, seed=0, trend_sd_per_decade=trend)
+            keep = {k: v for k, v in res.items() if k.endswith("fraction") or k in ("fdr_threshold", "params")}
+            keep["naive_mask"] = res["naive_mask"].astype(int)   # Plotly heatmaps need numbers
+            keep["honest_mask"] = res["honest_mask"].astype(int)
+            (out / noise_name(phi, trend)).write_text(json.dumps(clean(keep)), encoding="utf-8")
+            print(f"noise phi={phi} trend={trend}: usual {res['naive_fraction']:.1%}, honest {res['honest_fraction']:.1%}")
 
 
 if __name__ == "__main__":
+    import argparse
+
     warnings.filterwarnings("ignore")
-    build_noise()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--trend", type=float, action="append", help="build only these trend levels (0 or 0.8)")
+    a = ap.parse_args()
+    build_noise(a.trend or TRENDS)

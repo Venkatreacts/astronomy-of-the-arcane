@@ -102,10 +102,12 @@ NOISE = BACKEND.parent / "web" / "public" / "data" / "noise"
 
 
 @app.get("/api/noise-trap")
-def noise(phi: float = Query(0.5, ge=0.0, le=0.9)):
+def noise(phi: float = Query(0.5, ge=0.0, le=0.9), trend: float = Query(0.0)):
     """Serves the maps pre-computed by scripts/build_static.py (audit #3: computing one live took 15-58 s).
-    The web app reads the same files directly; this endpoint is kept for API users."""
-    path = NOISE / f"phi{round(phi, 1):.1f}_trend0.0.json"
+    trend = 0.8 is the positive control (real trend on the left half). The web app reads the same files."""
+    if trend not in (0.0, 0.8):
+        raise HTTPException(400, "trend must be 0 or 0.8")
+    path = NOISE / f"phi{round(phi, 1):.1f}_trend{trend:.1f}.json"
     if not path.is_file():
         raise HTTPException(404, "Noise maps not built yet: run python scripts/build_static.py")
     return json.loads(path.read_text(encoding="utf-8"))

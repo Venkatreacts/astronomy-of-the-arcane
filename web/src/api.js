@@ -39,5 +39,5 @@ export const api = {
   scanPresets: () => get('/api/scan/presets'),
   scan: ([latMin, latMax, lonMin, lonMax]) =>
     get(`/api/scan?lat_min=${latMin}&lat_max=${latMax}&lon_min=${lonMin}&lon_max=${lonMax}`),
-  noiseTrap: ({ phi }) => getStatic(`noise/phi${phi.toFixed(1)}_trend0.0.json`),
+  noiseTrap: ({ phi, trend = 0 }) => getStatic(`noise/phi${phi.toFixed(1)}_trend${trend.toFixed(1)}.json`),
 }
