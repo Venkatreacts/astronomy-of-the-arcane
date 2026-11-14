@@ -32,8 +32,8 @@ async function post(path, body) {
 export const api = {
   ask: (question) => post('/api/agent', { question }),
   params: () => get('/api/params'),
-  cases: () => get('/api/cases'),
-  caseFile: (id) => get(`/api/cases/${encodeURIComponent(id)}`),
+  cases: () => getStatic('cases/index.json'),
+  caseFile: (id) => getStatic(`cases/${encodeURIComponent(id)}.json`),
   point: ({ lat, lon, param }) =>
     get(`/api/point?lat=${lat}&lon=${lon}&param=${encodeURIComponent(param)}`),
   scanPresets: () => get('/api/scan/presets'),

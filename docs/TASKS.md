@@ -31,9 +31,10 @@ Work top to bottom inside each priority. Tick the box in this file when the "Don
 - [x] **Parts 2 + 5. Positive control** (Audit #4). `noise_trap(..., trend_sd_per_decade=0.8)` adds a real trend to the left half of the map. Save those ten maps too. Second button: "Now add a real trend".
   Done when: with the trend on, our map is filled on the left half and near empty on the right.
   Checked (phi 0.5, API stopped): left half 200/200 pixels, right half 10/200. At phi >= 0.8 the honest method loses power (55%, then 0% of the trend half); the page says so when it happens. Full table: `docs/validation.md` section 5.
-- [ ] **Parts 4 + 5. Serve case files as static files.** Put the case JSON (and a small `index.json` list) under `web/public/data/cases/` and load them from there.
+- [x] **Parts 4 + 5. Serve case files as static files.** Put the case JSON (and a small `index.json` list) under `web/public/data/cases/` and load them from there.
   Why: with this and the Noise Trap change, only "Investigate a place" needs a live server. The demo then works with no Wi-Fi, which the plan requires, and the Vercel deploy needs one small function.
   Done when: the Case files tab works with the API stopped.
+  Checked: works with the API stopped. `build_static.py` re-runs the analysis with the current engine when it copies each case, so `backend/data/cases/` is never edited here. Data session: after adding or changing a case file, run `python scripts/build_static.py --cases-only`.
 
 ## P1: needed to meet the challenge fully
 

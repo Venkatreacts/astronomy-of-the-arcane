@@ -37,6 +37,17 @@ def test_noise_endpoint_serves_the_positive_control():
     assert d["honest_left_fraction"] > 0.8 and d["honest_right_fraction"] < 0.2
 
 
+def test_static_cases_match_the_index_and_current_engine():
+    import json
+    out = BACKEND.parent / "web" / "public" / "data" / "cases"
+    index = json.loads((out / "index.json").read_text(encoding="utf-8"))
+    assert index, "run python scripts/build_static.py --cases-only"
+    for c in index:
+        d = json.loads((out / f"{c['id']}.json").read_text(encoding="utf-8"))
+        for s in d.get("series", []):
+            assert "slope_ci_per_year" in s["analysis"]["honest"]  # re-analysed with the current engine
+
+
 def test_point_returns_the_confidence_interval(monkeypatch):
     m._point.cache_clear()
     monkeypatch.setattr(m, "get_monthly_point", lambda *a, **k: fake_series())
