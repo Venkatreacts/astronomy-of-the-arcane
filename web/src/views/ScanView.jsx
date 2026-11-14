@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import Plot from '../components/Plot'
 import { api } from '../api'
-import { deg, fmt, pct, pval } from '../lib/format'
+import { decades, deg, fmt, pct, pval, rate } from '../lib/format'
+import { RULE, STAGE } from '../lib/stages'
 
 // purple = falling, green = rising: orange and blue are reserved for the tests. The middle is an opaque
 // dark grey, so a weak trend is visibly "near zero" instead of looking like an empty map.
 const DIVERGING = [[0, '#cc79a7'], [0.5, '#2a3540'], [1, '#009e73']]
 const REGIME_COLORS = ['#009e73', '#cc79a7', '#f0e442', '#e9eef2', '#7f8a96']
 const OVERLAYS = [
-  { id: 'naive', label: 'Usual test', key: 'naive_mask', color: '#d55e00' },
-  { id: 'pw', label: 'Stickiness removed', key: 'prewhitened_mask', color: '#56b4e9' },
-  { id: 'fdr', label: 'Honest (FDR)', key: 'fdr_mask', color: '#0072b2' },
+  { id: 'naive', label: STAGE.usual, key: 'naive_mask', color: '#d55e00' },
+  { id: 'pw', label: STAGE.pw, key: 'prewhitened_mask', color: '#56b4e9' },
+  { id: 'fdr', label: STAGE.honest, key: 'fdr_mask', color: '#0072b2' },
   { id: 'cluster', label: 'Clusters', key: 'cluster_map', color: '#f0e442' },
 ]
 const AXIS = { gridcolor: 'rgba(139,150,162,0.12)', linecolor: '#2b3947', ticks: 'outside', ticklen: 3, tickfont: { size: 11 } }
@@ -36,26 +37,27 @@ function geoLayout(scan, height) {
 
 function VariableMap({ scan, id, overlay }) {
   const v = scan.variables[id]
-  const rate = v.rate_per_decade
-  const finite = rate.flat().filter((x) => x != null)
+  const rates = v.rate_per_decade
+  const finite = rates.flat().filter((x) => x != null)
   const max = Math.max(...finite.map(Math.abs), 1e-9)
   const o = OVERLAYS.find((x) => x.id === overlay)
   const marks = v[o.key] ? cellsOf(scan, v[o.key], (b) => !!b) : { x: [], y: [] }
   const untested = cellsOf(scan, v.valid, (b) => !b)
-  const text = rate.map((row, i) => row.map((r, j) => {
+  const span = decades(v.period[0], v.period[1])
+  const text = rates.map((row, i) => row.map((r, j) => {
     if (r == null) return `${deg(scan.lats[i], scan.lons[j])}<br>not tested (missing or constant data)`
     const pn = v.p_naive?.[i][j]
     const pp = v.p_prewhitened?.[i][j]
     const cov = v.coverage?.[i][j]
-    return `${deg(scan.lats[i], scan.lons[j])}<br>${fmt(r, true)} ${v.units} per decade`
-      + (pn != null ? `<br>usual p ${pval(pn)} · stickiness removed p ${pval(pp)}` : `<br>z ${fmt(v.z[i][j])}`)
-      + `<br>honest (FDR): ${v.fdr_mask[i][j] ? 'trend' : 'not proven'}${cov != null ? ` · ${pct(cov)} of months` : ''}`
+    return `${deg(scan.lats[i], scan.lons[j])}<br>${rate(r)} ${v.units} per decade, ${rate(r * span)} ${v.units} since ${v.period[0].slice(0, 4)}`
+      + (pn != null ? `<br>${STAGE.usual} p ${pval(pn)} · ${STAGE.pw} p ${pval(pp)}` : `<br>z ${fmt(v.z[i][j])}`)
+      + `<br>${STAGE.honest}, map rule: ${v.fdr_mask[i][j] ? 'trend is real' : 'not proven'}${cov != null ? ` · ${pct(cov)} of months` : ''}`
   }))
   return (
     <figure className="scanmap">
       <Plot
         data={[
-          { z: rate, x: scan.lons, y: scan.lats, type: 'heatmap', colorscale: DIVERGING, zmin: -max, zmax: max,
+          { z: rates, x: scan.lons, y: scan.lats, type: 'heatmap', colorscale: DIVERGING, zmin: -max, zmax: max,
             xgap: 1, ygap: 1, text, hovertemplate: '%{text}<extra></extra>',
             colorbar: { thickness: 8, len: 0.9, outlinewidth: 0, tickfont: { size: 10 }, title: { text: `${v.units}/dec`, side: 'right', font: { size: 11 } } } },
           { ...untested, type: 'scatter', mode: 'markers', hoverinfo: 'skip', marker: { symbol: 'x-thin-open', size: 9, color: '#8b96a2', line: { width: 1.5 } } },
@@ -149,15 +151,15 @@ function Compare({ a, b, nameA, nameB }) {
       <caption>{nameA} compared with {nameB}</caption>
       <thead>
         <tr><th scope="col" rowSpan="2">Variable</th><th scope="colgroup" colSpan="3">{nameA}</th><th scope="colgroup" colSpan="3">{nameB}</th></tr>
-        <tr><th scope="col">Median rate / decade</th><th scope="col" className="u">Usual</th><th scope="col" className="h">Honest</th>
-          <th scope="col">Median rate / decade</th><th scope="col" className="u">Usual</th><th scope="col" className="h">Honest</th></tr>
+        <tr><th scope="col">Median rate / decade</th><th scope="col" className="u">{STAGE.usual}</th><th scope="col" className="h">{STAGE.honest}</th>
+          <th scope="col">Median rate / decade</th><th scope="col" className="u">{STAGE.usual}</th><th scope="col" className="h">{STAGE.honest}</th></tr>
       </thead>
       <tbody>
         {Object.keys(sa).filter((id) => sb[id]).map((id) => (
           <tr key={id}>
             <th scope="row">{sa[id].name}</th>
-            <td>{fmt(sa[id].median, true)} {sa[id].units}</td><td className="u">{share(sa[id].naive, sa[id].tested)}</td><td className="h">{share(sa[id].fdr, sa[id].tested)}</td>
-            <td>{fmt(sb[id].median, true)} {sb[id].units}</td><td className="u">{share(sb[id].naive, sb[id].tested)}</td><td className="h">{share(sb[id].fdr, sb[id].tested)}</td>
+            <td>{rate(sa[id].median)} {sa[id].units}</td><td className="u">{share(sa[id].naive, sa[id].tested)}</td><td className="h">{share(sa[id].fdr, sa[id].tested)}</td>
+            <td>{rate(sb[id].median)} {sb[id].units}</td><td className="u">{share(sb[id].naive, sb[id].tested)}</td><td className="h">{share(sb[id].fdr, sb[id].tested)}</td>
           </tr>
         ))}
       </tbody>
@@ -241,15 +243,29 @@ export default function ScanView() {
       {scan && (
         <div aria-busy={busy}>
           <p className="claim wide">
-            {s.n_tests.toLocaleString()} pixel tests. The usual test flags <strong className="u">{s.naive_hits}</strong>.
-            Remove stickiness: {s.prewhitened_hits ?? '–'}. Then control false discoveries across all of them:{' '}
-            <strong className="h">{s.fdr_hits}</strong> hold up. Separately, <strong>{s.significant_clusters}</strong>{' '}
-            connected patch{s.significant_clusters === 1 ? '' : 'es'} beat the shuffled maps.
+            {s.n_tests.toLocaleString()} pixel tests. The {STAGE.usual.toLowerCase()} flags <strong className="u">{s.naive_hits}</strong>.
+            Then two different questions about the same stickiness-free p-values:
+          </p>
+          <dl className="answers">
+            <div className="pw">
+              <dt>{STAGE.pw}</dt>
+              <dd><strong>{s.prewhitened_hits ?? '–'}</strong> pixels</dd>
+              <dd className="q">Is this one pixel a trend, judged on its own at p &lt; 0.05?</dd>
+            </div>
+            <div className="h">
+              <dt>{STAGE.honest}</dt>
+              <dd><strong className="h">{s.fdr_hits}</strong> pixels</dd>
+              <dd className="q">Across the whole box, which flags can we keep so that at most 10% of them are expected false?</dd>
+            </div>
+          </dl>
+          <p className="small">
+            The second answer is not a subset of the first. With many real trends in a box, false discovery control can
+            accept p-values above 0.05{s.fdr_threshold ? ` (here a pixel needs p ≤ ${pval(s.fdr_threshold)})` : ''}, so it can keep more pixels than the
+            one-pixel test. {RULE.map} Scope: {s.fdr_scope || 'every test in this box'}.
           </p>
           <p className="small">
-            All tests at p &lt; 0.05. False-discovery control at 10% over {s.fdr_scope || 'every test in this box'}
-            {s.fdr_threshold ? ` (a pixel needs p ≤ ${pval(s.fdr_threshold)})` : ''}; with many real trends this
-            threshold can exceed 0.05, so stage 3 can keep more pixels than stage 2. Clusters: {s.cluster_scope || 'cluster mass'} over {s.permutations} shuffles.
+            Separately, <strong>{s.significant_clusters}</strong> connected patch{s.significant_clusters === 1 ? '' : 'es'} beat
+            the shuffled maps ({s.cluster_scope || 'cluster mass'} over {s.permutations} shuffles).
           </p>
 
           <h3>Trend maps</h3>
@@ -278,7 +294,7 @@ export default function ScanView() {
                 {clusters.map((c) => (
                   <tr key={`${c.name}${c.id}`}>
                     <th scope="row">{c.name}</th><td>{c.word}</td><td>{c.size}</td><td>{deg(c.center_lat, c.center_lon)}</td>
-                    <td>{fmt(c.mean_rate_per_decade, true)} {c.units}</td><td>{pval(c.p)}</td>
+                    <td>{rate(c.mean_rate_per_decade)} {c.units}</td><td>{pval(c.p)}</td>
                   </tr>
                 ))}
               </tbody>
