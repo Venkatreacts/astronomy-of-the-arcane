@@ -6,6 +6,7 @@ import Fingerprint from '../components/Fingerprint'
 import { baseMean, deg, download, fmt, howMuch, km, nearestAtlasPoint, peq, pval, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
 import { useFrame } from '../lib/frame'
+import Info from '../components/Info'
 import { fromCell, fromLive, toCSV, toJSON } from '../lib/record'
 
 const PLACES = [
@@ -36,7 +37,7 @@ function Facts({ r }) {
       <div><dt>Observed</dt><dd>{r.dates[0]} to {r.dates[r.dates.length - 1]}<span>{r.n} of {r.months} months present ({((100 * r.n) / r.months).toFixed(0)}%)</span></dd></div>
       <div><dt>Seasons</dt><dd>{fmt(Math.min(...clim))} to {fmt(Math.max(...clim))} {r.units}<span>lowest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(lo * 3, lo * 3 + 3)}, highest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(hi * 3, hi * 3 + 3)}; removed before testing</span></dd></div>
       <div><dt>Change</dt><dd>{howMuch(r.honest.slope_per_year * 10, r.units, r.dates[0], r.dates[r.dates.length - 1], baseMean(r.dates, r.values))}<span>{ci ? `95% range ${rate(ci[0] * 10)} to ${rate(ci[1] * 10)} per decade` : 'no range available'} (Sen's slope)</span></dd></div>
-      <div><dt>Stickiness</dt><dd>φ = {fmt(r.noise.phi, false, 2)}<span>how much each month's anomaly resembles the last; noise σ = {fmt(r.noise.sigma_n)} {r.units}</span></dd></div>
+      <div><dt>Stickiness <Info term="stickiness" /></dt><dd>φ = {fmt(r.noise.phi, false, 2)}<span>how much each month's anomaly resembles the last; noise σ = {fmt(r.noise.sigma_n)} {r.units}</span></dd></div>
     </dl>
   )
 }
@@ -235,7 +236,7 @@ export default function InvestigateView({ pick }) {
       {r && (
         <div className="result" aria-busy={busy}>
           <Explorer data={data} fallback={fallback} frame={frame} onFrame={setFrame}
-            card={{ title: `${r.name} at ${deg(r.lat, r.lon)}`, file: stem }}>
+            card={{ title: `${r.name} at ${deg(r.lat, r.lon)}`, file: stem }} check={{ ids: [r.id], lat: r.lat, lon: r.lon }}>
             <Explain r={r} />
             <Halves halves={r.halves} units={r.units} />
           </Explorer>

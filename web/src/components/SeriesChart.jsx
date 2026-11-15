@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Plot from './Plot'
+import Info from './Info'
 
 const AXIS = { gridcolor: 'rgba(139,150,162,0.14)', linecolor: '#2b3947', tickfont: { size: 12 } }
 
@@ -81,6 +82,14 @@ export default function SeriesChart({ series, height = 340, toggle = false, perY
         style={{ width: '100%' }}
         useResizeHandler
       />
+      <figcaption className="small seasonal">
+        {!anomaly
+          ? 'Raw monthly values: the seasonal cycle is not removed here; the dotted line is each calendar month’s normal.'
+          : yearly
+            ? 'Seasonal cycle removed by keeping one season: each point is that season’s mean in one year, minus the average of all the years shown.'
+            : 'Seasonal cycle removed: each month’s value minus the average of that calendar month over the whole record shown (an anomaly).'}
+        {anomaly && <> <Info term="anomaly" /></>}
+      </figcaption>
     </figure>
   )
 }

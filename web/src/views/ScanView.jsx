@@ -277,7 +277,10 @@ export default function ScanView() {
             run on it. One series is one test, so the single-place rule applies.
           </p>
           <Explorer data={avgData} preset={avgData.preset} frame={frame} onFrame={setFrame}
-            card={{ title: avgData.name, file: `${active}_${avgVar}` }} />
+            card={{ title: avgData.name, file: `${active}_${avgVar}` }}
+            check={{ ids: [avgVar], box: avg.bbox, note: active === GLOBE.id
+              ? 'Giovanni averages every grid cell, land and sea, while our globe average uses the 721 land sample points, so expect a similar shape but not the same numbers'
+              : 'Giovanni averages the same grid cells, so the series should match closely' }} />
         </>
       ) : <p className="small">{active ? 'Loading the average…' : 'The average is pre-computed for the listed regions and the whole globe. A custom box shows the pixel maps only.'}</p>}
       {scan && (

@@ -9,6 +9,8 @@ import { baseMean, howMuch, peq, rate } from '../lib/format'
 import { FIRST, LAST, SEASONS, SHORT, frameLabel, isDefault, seasonName } from '../lib/frame'
 import { CLASSROOM, RULE, STAGE } from '../lib/stages'
 import { seriesCard } from '../lib/card'
+import Info from './Info'
+import CheckIt from './CheckIt'
 
 const YEARS = Array.from({ length: LAST - FIRST + 1 }, (_, k) => FIRST + k)
 
@@ -22,7 +24,7 @@ function Classroom({ ols, units }) {
   return (
     <dl className="verdicts classroom">
       <div className="vrow c">
-        <dt>{CLASSROOM}</dt>
+        <dt>{CLASSROOM} <Info term="classroom t-test" /></dt>
         <dd><span className="vword">{ols.significant ? 'Trend' : 'No trend'}</span>
           <span className="small">ordinary least squares · {rate(ols.slope_per_year * 10)} {units} per decade, 95% confidence
             interval {rate(ols.slope_ci_per_year[0] * 10)} to {rate(ols.slope_ci_per_year[1] * 10)} · t-test {peq(ols.p)}</span></dd>
@@ -98,7 +100,7 @@ function Provable({ provable, frame }) {
 
 // data: { dates, values, units, name } (monthly). preset: the default frame, pre-computed. fallback: the default
 // frame built from a record the page already has, used when the live server cannot be reached.
-export default function Explorer({ data, preset = null, fallback = null, frame, onFrame, card, children }) {
+export default function Explorer({ data, preset = null, fallback = null, frame, onFrame, card, check, children }) {
   const [res, setRes] = useState(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
@@ -171,12 +173,14 @@ export default function Explorer({ data, preset = null, fallback = null, frame, 
           <Stages naive={st.naive} pw={st.pw ?? st.honest} honest={st.honest} rule={res.rule} />
           <p className="small rate">
             Rate {howMuch(st.honest.slope_per_year * 10, data.units, first, last, yearly ? null : baseMean(s.dates, s.values))}
-            {st.honest.slope_ci_per_year && ` (95% range ${rate(st.honest.slope_ci_per_year[0] * 10)} to ${rate(st.honest.slope_ci_per_year[1] * 10)} per decade, Sen's slope)`}.
+            {st.honest.slope_ci_per_year && ` (95% range ${rate(st.honest.slope_ci_per_year[0] * 10)} to ${rate(st.honest.slope_ci_per_year[1] * 10)} per decade, Sen's slope)`}
+            {' '}<Info term="per decade" />.
           </p>
           <Classroom ols={res.ols} units={data.units} />
           <Provable provable={res.provable} frame={res.frame} />
           <SeasonTable seasons={res.seasons} units={data.units} current={res.season} />
           {isDefault(frame) && children}
+          {check && <CheckIt {...check} start={res.frame.start} end={res.frame.end} />}
           {card && (
             <div className="exports">
               <button onClick={() => seriesCard({ ...card, res, units: data.units, label, link: window.location.href })}>Download verdict card</button>

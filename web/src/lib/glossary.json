@@ -1,0 +1,11 @@
+{
+  "p-value": "The chance of seeing a trend at least this strong if the data were only random noise. A p-value below 0.05 means noise alone would do this less than 1 time in 20.",
+  "trend": "A steady rise or fall over the years, after the seasons are removed. It says which way things are changing, not why.",
+  "stickiness": "How much each month resembles the month before, written φ and between 0 and 1. Sticky data looks like a trend more often than it should, so the honest verdict removes the stickiness first.",
+  "honest verdict": "Our final answer: the trend test after stickiness is removed. For one place it needs p < 0.05; when many places, seasons or variables are tested together, it also keeps at most 10% false flags across them.",
+  "per decade": "How much the value changes in ten years at the measured rate. For example, +0.2 °C per decade adds up to about +0.9 °C over 45 years.",
+  "anomaly": "The difference between one month's value and the usual value for that calendar month. Removing the usual seasonal cycle this way lets a slow change show through.",
+  "usual test": "The Mann-Kendall trend test as most studies use it, treating every month as independent. With sticky data it finds trends in pure noise far too often.",
+  "false discovery control": "When many things are tested at once, some pass by luck alone. Benjamini-Hochberg keeps only the flags that can be kept with at most 10% of them expected to be false.",
+  "classroom t-test": "A straight line fitted by least squares, tested with Student's t. It assumes every value is independent and bell-shaped, which monthly weather data usually is not."
+}
