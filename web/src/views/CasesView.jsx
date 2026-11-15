@@ -29,11 +29,34 @@ function SeasonRows({ seasons, units }) {
   )
 }
 
+// Two NASA Worldview snapshots of the case's box (backend/scripts/fetch_worldview.py), saved with the app.
+function FromSpace({ sp }) {
+  return (
+    <figure className="fromspace">
+      <div className="fromspace-pair">
+        {sp.images.map((im) => (
+          <div key={im.date}>
+            <img src={`${import.meta.env.BASE_URL}${im.file}`} alt={`${im.label}, ${im.date}: true-colour satellite image of the case box`}
+              width="800" height="603" loading="lazy" />
+            <p><strong>{im.date}</strong> · {im.label}</p>
+          </div>
+        ))}
+      </div>
+      <figcaption className="small">
+        What the box looked like from space on two days: {sp.layer}. A photo is an illustration, not evidence: one day
+        says nothing about a trend. The tests below use the monthly series. Credit: {sp.credit}.
+      </figcaption>
+    </figure>
+  )
+}
+
 export default function CasesView() {
   const [cases, setCases] = useState([])
   const [active, setActive] = useState(null)
   const [error, setError] = useState('')
+  const [space, setSpace] = useState({})
 
+  useEffect(() => { api.space().then(setSpace).catch(() => {}) }, [])
   useEffect(() => {
     api.cases().then((list) => {
       setCases(list)
@@ -79,6 +102,7 @@ export default function CasesView() {
       )}
       {active?.series?.map((s) => (
         <article key={s.name} className="case-series">
+          {space[active.id] && <FromSpace sp={space[active.id]} />}
           <SeriesChart series={s} height={280} />
           <Verdict series={s} />
           {s.seasons && <SeasonRows seasons={s.seasons} units={s.units} />}

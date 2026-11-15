@@ -1,0 +1,26 @@
+{
+ "wisconsin": {
+  "layer": "MODIS on Aqua, corrected reflectance, true colour (MODIS_Aqua_CorrectedReflectance_TrueColor)",
+  "box": {
+   "south": 42.5,
+   "north": 47.1,
+   "west": -92.9,
+   "east": -86.8
+  },
+  "credit": "NASA Worldview / EOSDIS GIBS",
+  "images": [
+   {
+    "kind": "clear",
+    "date": "2005-06-21",
+    "label": "A clear June day early in the record",
+    "file": "space/wisconsin_2005-06-21.jpg"
+   },
+   {
+    "kind": "smoke",
+    "date": "2023-06-27",
+    "label": "A heavy smoke day",
+    "file": "space/wisconsin_2023-06-27.jpg"
+   }
+  ]
+ }
+}
