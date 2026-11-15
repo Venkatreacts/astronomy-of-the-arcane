@@ -26,7 +26,38 @@ const LAYERS = [
   { id: 'phi', label: 'Stickiness' },
   { id: 'coverage', label: 'Data coverage' },
   { id: 'years', label: 'Play the years' },
+  { id: 'known', label: 'When will we know?' },
+  { id: 'emerge', label: 'Left the old normal' },
+  { id: 'compound', label: 'Compound change' },
 ]
+// When will we know: the year a trend becomes provable if the present rate and noise continue (Weatherhead et al. 1998)
+const KNOWN = [
+  { label: 'Known now', color: '#0072b2', a: 1 },
+  { label: 'By 2035', color: '#56b4e9', a: 0.95 },
+  { label: 'By 2050', color: '#009e73', a: 0.9 },
+  { label: 'By 2075', color: '#f0e442', a: 0.85 },
+  { label: 'Later, or never at this rate', color: '#5b6875', a: 0.55 },
+]
+const knownYear = (c, last) => (Number.isFinite(c.more_years) ? Math.round(last + c.more_years) : null)
+function knownBin(c, last) {
+  if (c.honest) return 0
+  const y = knownYear(c, last)
+  return y == null ? 4 : y <= 2035 ? 1 : y <= 2050 ? 2 : y <= 2075 ? 3 : 4
+}
+// Left the old normal: |signal| / noise of the yearly means; names from Frame et al. (2017)
+const EMERGE = [
+  { label: 'Within the old normal (under 1)', color: '#5b6875', a: 0.5 },
+  { label: 'Unusual (1 to 2)', color: '#f0e442', a: 0.9 },
+  { label: 'Unfamiliar (2 to 3)', color: '#e69f00', a: 1 },
+  { label: 'Unknown (over 3)', color: '#d55e00', a: 1 },
+]
+const emergeBin = (r) => (r == null ? 3 : r < 1 ? 0 : r < 2 ? 1 : r < 3 ? 2 : 3)
+const LIT = '#cc79a7'
+function median(xs) {
+  const v = [...xs].sort((a, b) => a - b)
+  if (!v.length) return null
+  return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2
+}
 const TEST_PARAM = { naive: 'usual', pw: 'pw', fdr: 'honest' }
 // Trend colours per variable, falling end first: ColorBrewer RdBu, PRGn and BrBG, all colour-blind safe.
 const PALETTE = {
@@ -157,6 +188,29 @@ function Legend({ layer, stage, atlas, rateMax, pal, falseAlarms }) {
       </div>
     )
   }
+  if (layer === 'known' || layer === 'emerge') {
+    const bins = layer === 'known' ? KNOWN : EMERGE
+    return (
+      <div className="ramp" aria-label="Legend">
+        <ul className="legend-row">
+          {bins.map((b) => <li key={b.label}><span className="swatch" style={{ background: b.color, opacity: b.a }} />{b.label}</li>)}
+        </ul>
+        {layer === 'known' ? (
+          <span className="ramp-note">
+            The year a trend would pass the test at one place: {atlas.years[1]} plus the extra years of record needed.
+            Assumes the present rate and noise continue (Weatherhead et al. 1998). Known now: passes the map rule today.
+          </span>
+        ) : (
+          <span className="ramp-note">
+            Ratio: the change along the trend line over the whole record, divided by the year-to-year spread of the yearly
+            means around that line. Faint: the trend does not pass the honest verdict. The baseline is the start of this
+            record ({atlas.years[0]}), not pre-industrial. Method simplified from Hawkins &amp; Sutton (2012); names from
+            Frame et al. (2017).
+          </span>
+        )}
+      </div>
+    )
+  }
   const spec = {
     phi: { bg: 'linear-gradient(90deg,#1f2b36,#f0e442)', lo: 'φ 0', hi: 'φ 1', note: 'How much each month resembles the last (lag-1 autocorrelation of the detrended anomalies).' },
     coverage: { bg: 'linear-gradient(90deg,#f0e442,#2a3540)', lo: '80% of months', hi: '100%', note: 'Share of months with data. Points under 80% are not tested.' },
@@ -191,6 +245,9 @@ export default function AtlasView({ onPick }) {
   const [playing, setPlaying] = useState(false)
   // the picked point's full monthly record: all five variables, the 1981-2010 mean, the card's bars
   const [point, setPoint] = useState({ key: '', cell: null, err: '' })
+  const [ins, setIns] = useState(null)
+  const [comp, setComp] = useState(null)
+  const [preset, setPreset] = useState('hot-dry')
   const opened = useRef(false)
 
   useEffect(() => {
@@ -250,6 +307,16 @@ export default function AtlasView({ onPick }) {
     }).catch((e) => live && setError(e.message))
     return () => { live = false }
   }, [layer, varId])
+  useEffect(() => {
+    if (layer !== 'emerge' || !varId) return
+    let live = true
+    api.insights(varId).then((d) => live && setIns(d)).catch((e) => live && setError(e.message))
+    return () => { live = false }
+  }, [layer, varId])
+  useEffect(() => {
+    if (layer !== 'compound' || comp) return
+    api.compound().then(setComp).catch((e) => setError(e.message))
+  }, [layer, comp])
   useEffect(() => {
     if (!playing || !years) return
     const t = setInterval(() => setYear((y) => Math.min(years.years[1], y + 1)), YEAR_MS)
@@ -324,6 +391,28 @@ export default function AtlasView({ onPick }) {
     return { map, max: all[Math.floor(all.length * 0.95)] || 1, mean: yearlyMean(years) }
   }, [years, atlas])
   const tell = useMemo(() => (atlas ? describe(atlas) : null), [atlas])
+  const insMap = useMemo(() => (ins && ins.id === atlas?.id ? new Map(ins.cells.map((r) => [`${r[0]},${r[1]}`, r])) : null), [ins, atlas])
+  const pre = comp?.presets.find((p) => p.id === preset) ?? null
+  const compCells = useMemo(() => (pre ? pre.cells.map(([lat, lon, lit]) => ({ lat, lon, lit: Boolean(lit) })) : null), [pre])
+  const isComp = layer === 'compound' && Boolean(compCells)
+  const last = atlas?.years[1]
+  const tellLayer = (c) => {
+    if (isComp) {
+      return [`${deg(c.lat, c.lon)} · sample point`,
+        c.lit ? `${pre.name}: ${pre.words.join(' and ')}, both pass the honest verdict` : `Not both of: ${pre.words.join(', ')}`]
+    }
+    const base = tell(c)
+    if (layer === 'known') {
+      const y = knownYear(c, last)
+      return [...base, c.honest ? 'Provable now (map rule).' : y == null ? 'No trend to prove at this rate.' : `At this rate, provable about ${y}.`]
+    }
+    const r = layer === 'emerge' ? insMap?.get(`${c.lat},${c.lon}`) : null
+    if (r) {
+      const name = EMERGE[emergeBin(r[2])].label.split(' (')[0].toLowerCase()
+      return [...base, `Change ÷ year-to-year spread: ${fmt(r[2], false, 2)} (${name})${r[3] ? `; passed 2× the spread in ${r[3]}` : ''}`]
+    }
+    return base
+  }
 
   const now = STAGES.find((s) => s.id === stage)
   const pal = useMemo(() => palette(atlas?.id), [atlas])
@@ -337,9 +426,20 @@ export default function AtlasView({ onPick }) {
       const v = showYears ? yearData.map.get(`${c.lat},${c.lon}`)?.[year - years.years[0]] : null
       return v == null ? [...QUIET, 0.5, 0.7] : [...pal.ramp(0.5 + v / (2 * yearData.max)), sized(v / yearData.max), 1]
     }
+    if (layer === 'known') {
+      const b = KNOWN[knownBin(c, last)]
+      return [...rgb(b.color), b.a, 1]
+    }
+    if (layer === 'emerge') {
+      const r = insMap?.get(`${c.lat},${c.lon}`)
+      if (!r) return [...QUIET, 0.5, 0.7]
+      const b = EMERGE[emergeBin(r[2])]
+      return [...rgb(b.color), b.a * (c.honest ? 1 : FAINT), 1]
+    }
+    if (layer === 'compound') return c.lit ? [...rgb(LIT), 1, 1] : [...QUIET, 0.5, 1]
     return [...rgb(c.rate > 0 ? pal.up : pal.down), strength, 1]
   }
-  const paintKey = `${atlas?.id}|${layer}|${layer === 'years' ? `${Boolean(showYears)}|${year}` : stage}`
+  const paintKey = `${atlas?.id}|${layer}|${layer === 'years' ? `${Boolean(showYears)}|${year}` : stage}|${insMap ? 'i' : ''}|${isComp ? preset : ''}`
   // on the honest verdict, ring the points the usual test flagged and the honest verdict rejects
   const isFalseAlarm = (c) => c.naive && !c.honest
   const rings = stage === 'fdr' && (layer === 'rate' || layer === 'verdict')
@@ -350,15 +450,35 @@ export default function AtlasView({ onPick }) {
   const land = Boolean(atlas) && atlas.n_cells < Math.max(...index.map((v) => v.n_cells))
   const full = atlas && atlas.cells.every((c) => (c.coverage ?? 1) === 1)
 
+  // one sentence under the globe, built from the numbers of the layer and variable shown
+  let summary = ''
+  if (atlas && layer === 'known') {
+    const open = atlas.cells.filter((c) => !c.honest)
+    const more = median(open.map((c) => (Number.isFinite(c.more_years) ? c.more_years : Infinity)))
+    summary = open.length === 0 ? `All ${atlas.n_cells.toLocaleString()} points can be judged now.`
+      : `${open.length.toLocaleString()} of ${atlas.n_cells.toLocaleString()} points cannot be judged yet for ${atlas.name.toLowerCase()}; `
+        + (Number.isFinite(more) ? `half of them need more than ${Math.round(more)} more years at the present rate and noise.`
+          : 'for half of them, the present rate would never be enough.')
+  } else if (atlas && layer === 'emerge' && insMap) {
+    const rs = atlas.cells.map((c) => [c, insMap.get(`${c.lat},${c.lon}`)?.[2]]).filter(([, r]) => r != null)
+    const over2 = rs.filter(([, r]) => r >= 2)
+    summary = `For ${atlas.name.toLowerCase()}, ${rs.filter(([, r]) => r >= 1).length.toLocaleString()} of ${rs.length.toLocaleString()} points `
+      + `have moved more than one year-to-year spread since ${atlas.years[0]}; ${over2.length.toLocaleString()} moved more than two, `
+      + `and ${over2.filter(([c]) => c.honest).length.toLocaleString()} of those also pass the honest verdict.`
+  } else if (isComp) {
+    summary = `${pre.lit.toLocaleString()} of ${pre.tested.toLocaleString()} tested points (${pct(pre.share, 1)}) are `
+      + `${pre.name.toLowerCase()}: ${pre.words.join(' and ')}, both passing the honest verdict.`
+  }
+
   return (
     <div className="atlas">
       <div className="globe">
         {atlas ? (
-          <Globe cells={atlas.cells} step={atlas.step_deg} paint={paint} paintKey={paintKey} sweep={layer !== 'years'}
+          <Globe cells={isComp ? compCells : atlas.cells} step={atlas.step_deg} paint={paint} paintKey={paintKey} sweep={layer !== 'years'}
             mark={rings ? isFalseAlarm : null}
             sweepColor={sweepRGB(layer === 'verdict' || layer === 'rate' ? now.color : '#56b4e9')}
-            picked={picked} focus={focus} onPick={(c) => pick(c)} describe={tell} height={GLOBE_H}
-            flat={flat} squares={squares} landOnly={land} onSlow={() => { setSquares(true); setSlow(true) }}
+            picked={isComp ? null : picked} focus={focus} onPick={(c) => { if (!isComp) pick(c) }} describe={tellLayer} height={GLOBE_H}
+            flat={flat} squares={squares} landOnly={isComp ? pre.land_only : land} onSlow={() => { setSquares(true); setSlow(true) }}
             label={`${flat ? 'Flat map' : 'Globe'} of ${atlas.name.toLowerCase()} at ${atlas.n_cells} sample points. Drag or use the arrow keys to ${flat ? 'move' : 'turn'} it, plus and minus to zoom; click a point to read it.`} />
         ) : <div className="globe-wait" style={{ height: GLOBE_H }}>{error ? '' : 'Loading the world…'}</div>}
         {atlas && (
@@ -368,6 +488,7 @@ export default function AtlasView({ onPick }) {
               : 'Colour is interpolated between 5-degree sample points for display. Tests are run at the sample points only.'}
           </p>
         )}
+        {summary && <p className="globe-sentence" aria-live="polite">{summary}</p>}
         {showYears && (
           <div className="year-stamp">
             <span className="y">{year}</span>
@@ -398,12 +519,18 @@ export default function AtlasView({ onPick }) {
           ))}
         </div>
 
-        <div className="vars" role="group" aria-label="Variable">
+        {layer === 'compound' ? (
+          <div className="vars" role="group" aria-label="Pair of changes">
+            {(comp?.presets ?? []).map((p) => (
+              <button key={p.id} className={p.id === preset ? 'on' : ''} aria-pressed={p.id === preset} onClick={() => setPreset(p.id)}>{p.name}</button>
+            ))}
+          </div>
+        ) : <div className="vars" role="group" aria-label="Variable">
           {index.map((v) => (
             <button key={v.id} className={v.id === varId ? 'on' : ''} aria-pressed={v.id === varId}
               onClick={() => setVarId(v.id)}>{v.name}</button>
           ))}
-        </div>
+        </div>}
         <div className="layers" role="group" aria-label="What the colours show">
           {LAYERS.map((l) => (
             <button key={l.id} className={l.id === layer ? 'on' : ''} aria-pressed={l.id === layer} onClick={() => setLayer(l.id)}>{l.label}</button>
@@ -413,7 +540,19 @@ export default function AtlasView({ onPick }) {
           <label><input type="checkbox" checked={flat} onChange={(e) => setFlat(e.target.checked)} />Flat map</label>
           <label><input type="checkbox" checked={squares} onChange={(e) => setSquares(e.target.checked)} />Show sample squares</label>
         </div>
-        {atlas && layer !== 'years' && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} pal={pal} falseAlarms={falseAlarms} />}
+        {isComp && (
+          <div className="ramp" aria-label="Legend">
+            <ul className="legend-row">
+              <li><span className="swatch" style={{ background: LIT }} />Both: {pre.words.join(' and ')}</li>
+              <li><span className="swatch" style={{ background: '#1f2b36' }} />Tested, not both</li>
+            </ul>
+            <span className="ramp-note">
+              {comp.rule} {pre.land_only ? 'This pair is tested over land only.' : 'This pair is tested over land and ocean.'} Two
+              trends at the same point do not show that one causes the other, or what either means for people there.
+            </span>
+          </div>
+        )}
+        {atlas && layer !== 'years' && layer !== 'compound' && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} pal={pal} falseAlarms={falseAlarms} />}
         {layer === 'years' && (
           <div className="player">
             {!yearData ? <p className="small">Loading 45 years of {atlas?.name.toLowerCase()}…</p> : (
