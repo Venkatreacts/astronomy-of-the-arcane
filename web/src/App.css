@@ -398,3 +398,19 @@ table.sweeptable td.small { max-width: 34ch; }
 .fromspace img { display: block; width: 100%; height: auto; border: 1px solid var(--line-2); }
 .fromspace-pair p { margin: 6px 0 0; color: var(--ink-2); }
 .fromspace figcaption { margin-top: 8px; max-width: 72ch; color: var(--meta); }
+
+/* Train your eye */
+.round { max-width: 900px; border: 1px solid var(--line-2); background: var(--ground-2); padding: 4px 20px 4px; margin-top: 16px; }
+.round-head { font: 600 14px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--meta); margin: 16px 0 4px; }
+.round .controls { margin: 12px 0 16px; gap: 12px; }
+.reveal-truth { margin: 12px 0 8px; }
+.reveal table.halves { margin: 0; }
+.right { color: var(--honest-ink); font-weight: 600; }
+.wrong { color: var(--usual-ink); font-weight: 600; }
+.scores { max-width: 900px; margin-top: 16px; }
+.scores dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 0 0 16px; }
+.scores dl > div { border-top: 2px solid var(--line-2); padding-top: 8px; }
+.scores dt { color: var(--meta); }
+.scores dd { margin: 4px 0 0; font: 700 44px/1 var(--display); }
+.scores dd span { font-size: 18px; color: var(--meta); }
+.scores p { max-width: 72ch; }
