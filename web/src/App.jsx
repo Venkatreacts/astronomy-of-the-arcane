@@ -12,16 +12,22 @@ import DetectiveView from './views/DetectiveView'
 import WhoView from './views/WhoView'
 import StartView from './views/StartView'
 import HeadlineView from './views/HeadlineView'
+import DemoView from './views/DemoView'
+import WitnessView from './views/WitnessView'
+import OppositesView from './views/OppositesView'
 import './App.css'
 
 const PLATES = [
   ['atlas', 'The planet'],
   ['who', 'Who it’s for'],
   ['trap', 'The trap'],
+  ['demo', 'Watch a demo'],
   ['start', 'Start here'],
   ['headline', 'Check a headline'],
   ['place', 'Your place'],
   ['scan', 'Scan a region'],
+  ['witness', 'Second witness'],
+  ['opposites', 'Opposite directions'],
   ['detective', 'Ask the detective'],
   ['method', 'Method'],
 ]
@@ -56,10 +62,13 @@ export default function App() {
         }} /></section>
         <section id="who" className="plate"><WhoView /></section>
         <section id="trap" className="plate"><NoiseTrapView /></section>
+        <section id="demo" className="plate"><DemoView /></section>
         <section id="start" className="plate"><StartView /></section>
         <section id="headline" className="plate"><HeadlineView /></section>
         <section id="place" className="plate"><InvestigateView pick={pick} /><CasesView /></section>
         <section id="scan" className="plate"><ScanView /></section>
+        <section id="witness" className="plate"><WitnessView /></section>
+        <section id="opposites" className="plate"><OppositesView /></section>
         <section id="detective" className="plate"><DetectiveView /></section>
         <section id="method" className="plate method">
           <h2>How we know the honest verdict is honest</h2>
