@@ -10,12 +10,16 @@ import CasesView from './views/CasesView'
 import ScanView from './views/ScanView'
 import DetectiveView from './views/DetectiveView'
 import WhoView from './views/WhoView'
+import StartView from './views/StartView'
+import HeadlineView from './views/HeadlineView'
 import './App.css'
 
 const PLATES = [
   ['atlas', 'The planet'],
   ['who', 'Who it’s for'],
   ['trap', 'The trap'],
+  ['start', 'Start here'],
+  ['headline', 'Check a headline'],
   ['place', 'Your place'],
   ['scan', 'Scan a region'],
   ['detective', 'Ask the detective'],
@@ -52,6 +56,8 @@ export default function App() {
         }} /></section>
         <section id="who" className="plate"><WhoView /></section>
         <section id="trap" className="plate"><NoiseTrapView /></section>
+        <section id="start" className="plate"><StartView /></section>
+        <section id="headline" className="plate"><HeadlineView /></section>
         <section id="place" className="plate"><InvestigateView pick={pick} /><CasesView /></section>
         <section id="scan" className="plate"><ScanView /></section>
         <section id="detective" className="plate"><DetectiveView /></section>
