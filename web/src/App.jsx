@@ -15,6 +15,7 @@ import HeadlineView from './views/HeadlineView'
 import DemoView from './views/DemoView'
 import WitnessView from './views/WitnessView'
 import OppositesView from './views/OppositesView'
+import GameView from './views/GameView'
 import './App.css'
 
 const PLATES = [
@@ -28,6 +29,7 @@ const PLATES = [
   ['scan', 'Scan a region'],
   ['witness', 'Second witness'],
   ['opposites', 'Opposite directions'],
+  ['eye', 'Train your eye'],
   ['detective', 'Ask the detective'],
   ['method', 'Method'],
 ]
@@ -69,6 +71,7 @@ export default function App() {
         <section id="scan" className="plate"><ScanView /></section>
         <section id="witness" className="plate"><WitnessView /></section>
         <section id="opposites" className="plate"><OppositesView /></section>
+        <section id="eye" className="plate"><GameView /></section>
         <section id="detective" className="plate"><DetectiveView /></section>
         <section id="method" className="plate method">
           <h2>How we know the honest verdict is honest</h2>
