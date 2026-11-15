@@ -61,6 +61,13 @@ Downloads go to `backend/data/raw/` (not committed). Small cached case files go 
 - **Live questions** need two things on the server: an AI key (`GEMINI_API_KEY`, or `ANTHROPIC_API_KEY`) and `DETECTIVE_PASSCODE`. The page asks for the passcode, so a public link cannot use up the key. For local use put them in `backend/.env` (never committed).
 - What the Detective knows before it answers: `docs/detective-notes.md` plus a summary of every saved case and region scan. Edit the notes to teach it more; keep only measured numbers in them.
 
+## MCP connector (use Noise Trap from another app or AI)
+The API server also speaks the Model Context Protocol at `/mcp` (streamable HTTP, stateless). Any MCP client, such as Claude, ChatGPT, Cursor or your own script, can call the same 10 tools the Detective uses: `atlas_point`, `analyze_point`, `scan_region`, `noise_check` and the rest. No AI key or passcode is needed, because the caller's assistant does the talking and our server only runs the tests.
+- **URL:** `https://<your-render-service>.onrender.com/mcp` (locally `http://localhost:8000/mcp`).
+- **Claude:** Settings → Connectors → Add custom connector, paste the URL.
+- **Any client config:** `{"mcpServers": {"noise-trap": {"type": "http", "url": "https://<your-render-service>.onrender.com/mcp"}}}`
+- Every tool is read-only. Only `analyze_point` calls NASA POWER live; the other tools read the pre-computed files.
+
 ## Deploy
 - **API on Render:** `render.yaml` describes the service. In the Render dashboard create a web service from this repo and set `GEMINI_API_KEY`, `DETECTIVE_PASSCODE` and `ALLOWED_ORIGINS` (the web app's URL). The free plan sleeps when idle and takes about a minute to wake; the page says so while it waits.
 - **Web app on Vercel:** project root `web/`, environment variable `VITE_API_URL` set to the Render URL.
