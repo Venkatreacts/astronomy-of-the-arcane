@@ -242,7 +242,7 @@ def opposites() -> dict:
     """For each atlas variable, the honest rising cell and the honest falling cell with the largest rates."""
     out = []
     for f in sorted((WEB / "atlas").glob("*.json")):
-        if f.stem == "index" or f.stem.startswith("years_"):  # the index and the provable-year files
+        if f.stem == "index" or f.stem.startswith(("years_", "insights_")):  # index, provable-year and derived-layer files
             continue
         d = json.loads(f.read_text(encoding="utf-8"))
         honest = [c for c in d["cells"] if c.get("honest") and c.get("rate") is not None]
