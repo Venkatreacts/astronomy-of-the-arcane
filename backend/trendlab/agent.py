@@ -49,7 +49,11 @@ Rules:
   when they can answer; analyze_point fetches live data and is slower.
 - Structure: a short answer first (2-4 sentences); then "Evidence:" with up to 6 bullets, each naming the tool it came
   from; then "Uncertainty:" in one or two sentences; then one "What to check next" line.
-- Use at most 8 tool calls. Regional scans cover only the regions from list_regions."""
+- Use at most 8 tool calls. Regional scans cover only the regions from list_regions.
+- For "What should I investigate in a <place type> near <place>?": call suggest_variables with that place type (theme
+  "any" unless the question names one), then analyze_point for 3 to 5 of the suggested variables at the place's
+  coordinates. Give each variable's plain definition and its three stages, and say that testing several variables
+  makes a chance result more likely (about 1 in 20 per variable at p < 0.05). Suggest; never say why anything changed."""
 
 
 def _tools_schema() -> list[dict]:
@@ -76,6 +80,12 @@ def _tools_schema() -> list[dict]:
          "input_schema": obj({"lat": num, "lon": num, "variable": {"type": "string",
                               "description": "Variable id from list_variables, e.g. T2M, PRECTOTCORR, GWETROOT."}},
                              ["lat", "lon", "variable"])},
+        {"name": "suggest_variables", "strict": True,
+         "description": ("Offline. 3 to 5 NASA POWER variables from the catalog worth investigating for a kind of place "
+                         "(and optionally a theme), each with a plain one-sentence definition. Use their ids with analyze_point."),
+         "input_schema": obj({"place_type": {"type": "string", "enum": ["coast", "farm", "city", "forest", "desert", "mountain", "snow"]},
+                              "theme": {"type": "string", "enum": ["any", "heat", "water", "air", "wind", "sunlight"]}},
+                             ["place_type", "theme"])},
         {"name": "list_regions", "strict": True,
          "description": "Offline. The pre-computed regional scans (id, name, box). Use their ids with compare_regions.",
          "input_schema": obj({}, [])},
@@ -114,6 +124,7 @@ def default_executor() -> Callable[[str, dict], Any]:
     from fetch_power import PARAMS, get_monthly_point  # backend/data on sys.path via api.main
     from trendlab import analyze_series, noise_trap
     from trendlab.scan import SCAN_VARS
+    from trendlab.sweep import catalog, fetch_point_many, suggest
     import numpy as np
 
     data = pathlib.Path(__file__).resolve().parents[2] / "web" / "public" / "data"
@@ -146,7 +157,8 @@ def default_executor() -> Callable[[str, dict], Any]:
 
     def run(name: str, args: dict) -> Any:
         if name == "list_variables":
-            return {"point_variables": {k: f"{v[0]} ({v[1]})" for k, v in PARAMS.items()},
+            return {"point_variables": {**{v["id"]: f"{v['name']} ({v['units']})" for v in catalog()},
+                                        **{k: f"{v[0]} ({v[1]})" for k, v in PARAMS.items()}},
                     "scan_and_atlas_variables": {k: f"{v[0]} ({v[1]})" for k, v in SCAN_VARS.items()}}
         if name == "atlas_point":
             lat, lon = float(args["lat"]), float(args["lon"])
@@ -168,8 +180,19 @@ def default_executor() -> Callable[[str, dict], Any]:
                     "variables": [{"name": v["name"], "points": v["n_cells"], "share_usual": round(v["naive_fraction"], 3),
                                    "share_stickiness_removed": round(v["pw_fraction"], 3) if "pw_fraction" in v else None,
                                    "share_honest_fdr": round(v["honest_fraction"], 3)} for v in read("atlas", "index.json")]}
+        if name == "suggest_variables":
+            return [{k: v[k] for k in ("id", "name", "units", "definition")}
+                    for v in suggest(args["place_type"], args.get("theme", "any"))]
         if name == "analyze_point":
-            s = get_monthly_point(float(args["lat"]), float(args["lon"]), args["variable"], 1981, 2025)
+            var = args["variable"]
+            if var in PARAMS:
+                s = get_monthly_point(float(args["lat"]), float(args["lon"]), var, 1981, 2025)
+            else:  # any other catalog variable, through the same NASA POWER point API
+                v = next((c for c in catalog() if c["id"] == var), None)
+                if v is None:
+                    raise ValueError(f"Unknown variable {var}. Use list_variables.")
+                got = fetch_point_many(float(args["lat"]), float(args["lon"]), [var])[var]
+                s = {**got, "name": v["name"], "units": v["units"]}
             a = analyze_series(s["dates"], [np.nan if v is None else v for v in s["values"]])
             return {"variable": s["name"], "units": s["units"], "period": [s["dates"][0], s["dates"][-1]],
                     "months_present": int(sum(v is not None for v in s["values"])), "months": len(s["values"]),
