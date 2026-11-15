@@ -1,0 +1,57 @@
+{
+ "id": "chennai-hotter",
+ "text": "Chennai is getting hotter every year.",
+ "extracted": {
+  "variable": "T2M",
+  "place": "Chennai",
+  "start_year": 1981,
+  "end_year": 2025,
+  "direction": "up",
+  "model": "gemini-3.5-flash"
+ },
+ "place": {
+  "name": "Chennai",
+  "lat": 13.08,
+  "lon": 80.27
+ },
+ "check": {
+  "verdict": "Not proven yet",
+  "label": "Not proven yet (about 17 more years)",
+  "claim": {
+   "variable": "T2M",
+   "place": "Chennai",
+   "start_year": 1981,
+   "end_year": 2025,
+   "direction": "up"
+  },
+  "lat": 13.08,
+  "lon": 80.27,
+  "variable": {
+   "id": "T2M",
+   "name": "Air temperature",
+   "units": "degC",
+   "definition": "How warm the air is near the ground, averaged over the month.",
+   "giovanni": "MERRA-2 M2TMNXSLV · T2M (in kelvin)"
+  },
+  "result": {
+   "frame": {
+    "start": 1981,
+    "end": 2025,
+    "years": 45,
+    "short": false
+   },
+   "rate_per_decade": 0.06514851485148616,
+   "rate_ci_per_decade": [
+    0.002134815830777334,
+    0.12503027420115506
+   ],
+   "p_usual": 0.0026532120072913917,
+   "usual": true,
+   "p_honest": 0.05449066090634364,
+   "honest": false,
+   "years_more_needed": 16.428506455123916,
+   "rule": "single place: stickiness-removed Mann-Kendall at p < 0.05"
+  }
+ },
+ "saved_on": "2026-11-15"
+}

@@ -1,0 +1,57 @@
+{
+ "id": "sahel-drier",
+ "text": "The Sahel around Niamey has been getting drier since 1990.",
+ "extracted": {
+  "variable": "PRECTOTCORR",
+  "place": "Niamey",
+  "start_year": 1990,
+  "end_year": 2025,
+  "direction": "down",
+  "model": "gemini-3.5-flash"
+ },
+ "place": {
+  "name": "Niamey",
+  "lat": 13.51,
+  "lon": 2.11
+ },
+ "check": {
+  "verdict": "The data point the other way",
+  "label": "The data point the other way",
+  "claim": {
+   "variable": "PRECTOTCORR",
+   "place": "Niamey",
+   "start_year": 1990,
+   "end_year": 2025,
+   "direction": "down"
+  },
+  "lat": 13.51,
+  "lon": 2.11,
+  "variable": {
+   "id": "PRECTOTCORR",
+   "name": "Rainfall",
+   "units": "mm/day",
+   "definition": "Rain and snow, as the depth of water that falls in a day.",
+   "giovanni": "MERRA-2 M2TMNXFLX · PRECTOTCORR (kg m-2 s-1; × 86400 = mm/day)"
+  },
+  "result": {
+   "frame": {
+    "start": 1990,
+    "end": 2025,
+    "years": 36,
+    "short": false
+   },
+   "rate_per_decade": 0.005490196078431373,
+   "rate_ci_per_decade": [
+    -0.0005166678327498159,
+    0.02121028673960767
+   ],
+   "p_usual": 0.03229463072819262,
+   "usual": true,
+   "p_honest": 0.04912158145141303,
+   "honest": true,
+   "years_more_needed": 0.0,
+   "rule": "single place: stickiness-removed Mann-Kendall at p < 0.05"
+  }
+ },
+ "saved_on": "2026-11-15"
+}

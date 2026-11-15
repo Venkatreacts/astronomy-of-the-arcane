@@ -1,0 +1,57 @@
+{
+ "id": "madrid-hotter",
+ "text": "Madrid has been getting hotter since 1981.",
+ "extracted": {
+  "variable": "T2M",
+  "place": "Madrid",
+  "start_year": 1981,
+  "end_year": 2025,
+  "direction": "up",
+  "model": "gemini-3.5-flash"
+ },
+ "place": {
+  "name": "Madrid",
+  "lat": 40.42,
+  "lon": -3.7
+ },
+ "check": {
+  "verdict": "Supported by the data",
+  "label": "Supported by the data",
+  "claim": {
+   "variable": "T2M",
+   "place": "Madrid",
+   "start_year": 1981,
+   "end_year": 2025,
+   "direction": "up"
+  },
+  "lat": 40.42,
+  "lon": -3.7,
+  "variable": {
+   "id": "T2M",
+   "name": "Air temperature",
+   "units": "degC",
+   "definition": "How warm the air is near the ground, averaged over the month.",
+   "giovanni": "MERRA-2 M2TMNXSLV · T2M (in kelvin)"
+  },
+  "result": {
+   "frame": {
+    "start": 1981,
+    "end": 2025,
+    "years": 45,
+    "short": false
+   },
+   "rate_per_decade": 0.331570201080698,
+   "rate_ci_per_decade": [
+    0.21216077666190133,
+    0.45391281636766845
+   ],
+   "p_usual": 1.90699789684242e-11,
+   "usual": true,
+   "p_honest": 3.3698290131044036e-06,
+   "honest": true,
+   "years_more_needed": 0.0,
+   "rule": "single place: stickiness-removed Mann-Kendall at p < 0.05"
+  }
+ },
+ "saved_on": "2026-11-15"
+}
