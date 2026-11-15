@@ -66,6 +66,9 @@ export const api = {
   atlasIndex: () => getStatic('atlas/index.json'),
   atlas: (id) => getStatic(`atlas/${encodeURIComponent(id)}.json`),
   atlasYears: (id) => getStatic(`atlas/years_${encodeURIComponent(id)}.json`),
+  // derived layers (backend/scripts/build_insights.py)
+  insights: (id) => getStatic(`atlas/insights_${encodeURIComponent(id)}.json`),
+  compound: () => getStatic('atlas/insights_COMPOUND.json'),
   land: () => fetch(`${import.meta.env.BASE_URL}topojson/world_110m.json`).then((r) => r.json()),
   // one pre-computed file per atlas sample point, with all five variables (works offline)
   cell: (lat, lon) => {
