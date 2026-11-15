@@ -1,0 +1,325 @@
+{
+ "checked": "2026-11-15",
+ "test_point": {
+  "name": "Chennai",
+  "lat": 13.08,
+  "lon": 80.27
+ },
+ "source": "NASA POWER monthly point API",
+ "variables": [
+  {
+   "id": "T2M",
+   "name": "Air temperature",
+   "units": "degC",
+   "definition": "How warm the air is near the ground, averaged over the month.",
+   "themes": [
+    "heat"
+   ],
+   "places": [
+    "coast",
+    "farm",
+    "city",
+    "forest",
+    "desert",
+    "mountain",
+    "snow"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · T2M (in kelvin)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "T2M_MAX",
+   "name": "Daily highest temperature",
+   "units": "degC",
+   "definition": "The hottest reading of each day, averaged over the month.",
+   "themes": [
+    "heat"
+   ],
+   "places": [
+    "city",
+    "desert",
+    "farm"
+   ],
+   "giovanni": "MERRA-2 M2SMNXSLV · T2MMAX (in kelvin)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "T2M_MIN",
+   "name": "Daily lowest temperature",
+   "units": "degC",
+   "definition": "The coldest reading of each day, usually at night, averaged over the month.",
+   "themes": [
+    "heat"
+   ],
+   "places": [
+    "city",
+    "desert",
+    "mountain",
+    "snow"
+   ],
+   "giovanni": "MERRA-2 M2SMNXSLV · T2MMIN (in kelvin)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "TS",
+   "name": "Ground surface temperature",
+   "units": "degC",
+   "definition": "How warm the ground or sea surface itself is, not the air above it.",
+   "themes": [
+    "heat"
+   ],
+   "places": [
+    "desert",
+    "city",
+    "coast",
+    "snow"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · TS (in kelvin)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "T2MDEW",
+   "name": "Dew point",
+   "units": "degC",
+   "definition": "The temperature at which the air would be full of water vapour and dew would form, so a higher dew point means muggier air.",
+   "themes": [
+    "heat",
+    "water",
+    "air"
+   ],
+   "places": [
+    "coast",
+    "forest",
+    "farm"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · T2MDEW (in kelvin)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "PRECTOTCORR",
+   "name": "Rainfall",
+   "units": "mm/day",
+   "definition": "Rain and snow, as the depth of water that falls in a day.",
+   "themes": [
+    "water"
+   ],
+   "places": [
+    "farm",
+    "forest",
+    "coast",
+    "desert",
+    "mountain"
+   ],
+   "giovanni": "MERRA-2 M2TMNXFLX · PRECTOTCORR (kg m-2 s-1; × 86400 = mm/day)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "GWETROOT",
+   "name": "Root-zone soil wetness",
+   "units": "0-1",
+   "definition": "How wet the soil is where roots reach: 0 is completely dry, 1 is saturated.",
+   "themes": [
+    "water"
+   ],
+   "places": [
+    "farm",
+    "forest",
+    "desert"
+   ],
+   "giovanni": "MERRA-2 M2TMNXLND · GWETROOT",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "GWETTOP",
+   "name": "Topsoil wetness",
+   "units": "0-1",
+   "definition": "How wet the top few centimetres of soil are: 0 is completely dry, 1 is soaked.",
+   "themes": [
+    "water"
+   ],
+   "places": [
+    "farm",
+    "desert"
+   ],
+   "giovanni": "MERRA-2 M2TMNXLND · GWETTOP",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "EVLAND",
+   "name": "Evaporation from land",
+   "units": "mm/day",
+   "definition": "How much water rises from soil and plants into the air each day, measured as a depth of water.",
+   "themes": [
+    "water"
+   ],
+   "places": [
+    "farm",
+    "forest"
+   ],
+   "giovanni": "MERRA-2 M2TMNXLND · EVLAND (kg m-2 s-1)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "RH2M",
+   "name": "Relative humidity",
+   "units": "%",
+   "definition": "How much water vapour the air holds, as a percent of the most it could hold.",
+   "themes": [
+    "water",
+    "air"
+   ],
+   "places": [
+    "coast",
+    "city",
+    "forest"
+   ],
+   "giovanni": "none: NASA POWER computes it; the closest MERRA-2 field is M2TMNXSLV · QV2M",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "QV2M",
+   "name": "Specific humidity",
+   "units": "g/kg",
+   "definition": "How many grams of water vapour there are in each kilogram of air near the ground.",
+   "themes": [
+    "water",
+    "air"
+   ],
+   "places": [
+    "coast",
+    "forest"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · QV2M (kg/kg)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "WS2M",
+   "name": "Wind speed at 2 m",
+   "units": "m/s",
+   "definition": "Average wind speed near the ground.",
+   "themes": [
+    "wind"
+   ],
+   "places": [
+    "coast",
+    "farm",
+    "desert"
+   ],
+   "giovanni": "none: NASA POWER computes it from MERRA-2 M2TMNXSLV · U2M and V2M",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "WS10M",
+   "name": "Wind speed at 10 m",
+   "units": "m/s",
+   "definition": "Average wind speed at the height of a weather mast, 10 m above the ground.",
+   "themes": [
+    "wind"
+   ],
+   "places": [
+    "coast",
+    "mountain",
+    "desert"
+   ],
+   "giovanni": "none: NASA POWER computes it from MERRA-2 M2TMNXSLV · U10M and V10M",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "PS",
+   "name": "Air pressure at the surface",
+   "units": "kPa",
+   "definition": "How hard the air above presses down on the ground, which is lower high up on a mountain.",
+   "themes": [
+    "air",
+    "wind"
+   ],
+   "places": [
+    "mountain",
+    "coast"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · PS (in pascals)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "CLOUD_AMT",
+   "name": "Cloud cover",
+   "units": "%",
+   "definition": "The share of the sky covered by cloud, averaged over the month.",
+   "themes": [
+    "sunlight",
+    "water"
+   ],
+   "places": [
+    "coast",
+    "forest",
+    "mountain"
+   ],
+   "giovanni": "closest: MERRA-2 M2TMNXRAD · CLDTOT (NASA POWER uses satellite cloud data)",
+   "months_at_test_point": 504
+  },
+  {
+   "id": "ALLSKY_SFC_SW_DWN",
+   "name": "Sunlight reaching the ground",
+   "units": "kWh/m2/day",
+   "definition": "Solar energy arriving at the ground in a day, with clouds counted.",
+   "themes": [
+    "sunlight"
+   ],
+   "places": [
+    "desert",
+    "farm",
+    "city"
+   ],
+   "giovanni": "closest: MERRA-2 M2TMNXRAD · SWGDN (NASA POWER uses CERES satellite data)",
+   "months_at_test_point": 504
+  },
+  {
+   "id": "SNODP",
+   "name": "Snow depth",
+   "units": "cm",
+   "definition": "How deep the snow on the ground is, averaged over the month.",
+   "themes": [
+    "water"
+   ],
+   "places": [
+    "snow",
+    "mountain"
+   ],
+   "giovanni": "MERRA-2 M2TMNXLND · SNODP (in metres)",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "TQV",
+   "name": "Water vapour in the whole air column",
+   "units": "kg/m2",
+   "definition": "All the water vapour in the air above a spot, as if it fell as a layer of water (1 kg per square metre is 1 mm).",
+   "themes": [
+    "water",
+    "air"
+   ],
+   "places": [
+    "coast",
+    "forest"
+   ],
+   "giovanni": "MERRA-2 M2TMNXSLV · TQV",
+   "months_at_test_point": 540
+  },
+  {
+   "id": "AOD_55",
+   "name": "Haze (aerosol optical depth)",
+   "units": "unitless",
+   "definition": "How much dust, smoke and pollution dim the sunlight passing through the air, where 0 means perfectly clear.",
+   "themes": [
+    "air",
+    "sunlight"
+   ],
+   "places": [
+    "city",
+    "desert",
+    "farm"
+   ],
+   "giovanni": "MERRA-2 M2TMNXAER · TOTEXTTAU",
+   "months_at_test_point": 300
+  }
+ ]
+}
