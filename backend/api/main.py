@@ -24,6 +24,8 @@ sys.path.insert(0, str(BACKEND / "data"))
 
 from fetch_power import PARAMS, get_monthly_point  # noqa: E402
 from trendlab import analyze_series  # noqa: E402
+from trendlab.explore import FIRST_YEAR, LAST_YEAR, explore  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
 
 CASES = BACKEND / "data" / "cases"
 
@@ -104,6 +106,27 @@ def point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-18
         raise HTTPException(502, f"NASA POWER request failed: {exc}") from exc
     except ValueError as exc:  # our own analysis, e.g. too few usable months
         raise HTTPException(400, f"Cannot analyse this place: {exc}") from exc
+
+
+class Series(BaseModel):
+    dates: list[str] = Field(..., min_length=24, max_length=1200)
+    values: list[float | None] = Field(..., min_length=24, max_length=1200)
+    start: int = Field(FIRST_YEAR, ge=FIRST_YEAR, le=LAST_YEAR)
+    end: int = Field(LAST_YEAR, ge=FIRST_YEAR, le=LAST_YEAR)
+    season: str = "all"
+
+
+@app.post("/api/explore")
+def explore_series(s: Series):
+    """Time frame, season, classroom t-test and provable year for a monthly series the page already has
+    (a live point, an atlas point or a region average). Same engine as /api/point."""
+    if len(s.dates) != len(s.values) or not all(len(d) == 7 and d[4] == "-" for d in s.dates):
+        raise HTTPException(400, "dates must be YYYY-MM, one per value")
+    vals = [np.nan if v is None else v for v in s.values]
+    try:
+        return clean(explore(s.dates, vals, s.start, s.end, s.season))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 NOISE = BACKEND.parent / "web" / "public" / "data" / "noise"
