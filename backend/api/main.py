@@ -31,6 +31,7 @@ CASES = BACKEND / "data" / "cases"
 
 from api.scan_routes import router as scan_router  # noqa: E402
 from api.agent_routes import router as agent_router  # noqa: E402
+from api.claim_routes import router as claim_router  # noqa: E402
 
 app = FastAPI(title="Noise Trap API", version="0.1.0")
 # Browsers may call the API only from our own web app. ALLOWED_ORIGINS is a comma-separated list (the Vercel URL).
@@ -38,6 +39,7 @@ ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://localhos
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["*"])
 app.include_router(scan_router)
 app.include_router(agent_router)
+app.include_router(claim_router)
 
 
 def clean(o):

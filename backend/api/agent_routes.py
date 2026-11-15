@@ -33,13 +33,18 @@ class Question(BaseModel):
     history: list[Turn] = Field(default_factory=list, max_length=4)  # earlier turns, for follow-up questions
 
 
-@router.post("")
-def detective(q: Question, x_demo_passcode: str = Header("")):
+def require_passcode(given: str) -> None:
+    """Every live AI call needs the team passcode (503 if none is configured, 401 if wrong)."""
     passcode = os.environ.get("DETECTIVE_PASSCODE", "")
     if not passcode:
         raise HTTPException(503, NOT_SET_UP)
-    if not hmac.compare_digest(x_demo_passcode.encode(), passcode.encode()):
+    if not hmac.compare_digest(given.encode(), passcode.encode()):
         raise HTTPException(401, "Wrong passcode. Live questions are for the team's demo; the saved answers are open.")
+
+
+@router.post("")
+def detective(q: Question, x_demo_passcode: str = Header("")):
+    require_passcode(x_demo_passcode)
 
     if os.environ.get("GEMINI_API_KEY"):
         try:
