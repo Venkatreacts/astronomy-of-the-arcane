@@ -2,24 +2,26 @@
 // One place is one test, so the honest verdict follows the single-place rule (stage 2).
 import { baseMean, fmt, howMuch, peq, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
+import Info from './Info'
 
-export function Stages({ naive, pw }) {
+// rule = 'season' when one of four seasons is shown: its honest verdict is the four-season FDR result.
+export function Stages({ naive, pw, honest = pw, rule = 'place' }) {
   return (
     <dl className="verdicts three">
       <div className="vrow u">
-        <dt>1 · {STAGE.usual}</dt>
-        <dd><span className="vword">{naive.significant ? 'Trend' : 'No trend'}</span>
-          <span className="small">Mann-Kendall on the anomalies · {peq(naive.p)}</span></dd>
+        <dt>1 · {STAGE.usual} <Info term="usual test" /></dt>
+        <dd><span className="vword">{naive.significant ? 'Trend' : 'No trend'} <Info term="trend" /></span>
+          <span className="small">Mann-Kendall on the anomalies <Info term="anomaly" /> · {peq(naive.p)} <Info term="p-value" /></span></dd>
       </div>
       <div className="vrow pw">
-        <dt>2 · {STAGE.pw}</dt>
+        <dt>2 · {STAGE.pw} <Info term="stickiness" /></dt>
         <dd><span className="vword">{pw.significant ? 'Trend' : 'No trend'}</span>
           <span className="small">same test after pre-whitening · {peq(pw.p)}</span></dd>
       </div>
       <div className="vrow h">
-        <dt>3 · {STAGE.honest}</dt>
-        <dd><span className="vword">{pw.significant ? 'Trend is real' : 'Not proven'}</span>
-          <span className="small rule">{RULE.place}</span></dd>
+        <dt>3 · {STAGE.honest} <Info term="honest verdict" /></dt>
+        <dd><span className="vword">{honest.significant ? 'Trend is real' : 'Not proven'}</span>
+          <span className="small rule">{RULE[rule]}</span></dd>
       </div>
     </dl>
   )

@@ -3,14 +3,60 @@ import { api } from '../api'
 import SeriesChart from '../components/SeriesChart'
 import Verdict from '../components/Verdict'
 import MaskMap from '../components/MaskMap'
-import { pct } from '../lib/format'
+import { pct, peq, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
+
+// The three stages for all months and two seasons (cases built with seasons, e.g. Wisconsin).
+function SeasonRows({ seasons, units }) {
+  const rows = ['all', 'JJA', 'DJF'].map((k) => seasons[k]).filter(Boolean)
+  return (
+    <table className="halves seasons">
+      <caption>All months and two seasons, {rows[0].frame.start}–{rows[0].frame.end}</caption>
+      <thead><tr><th scope="col">Months</th><th scope="col">Rate per decade</th><th scope="col" className="u">{STAGE.usual}</th>
+        <th scope="col" className="h">{STAGE.honest}</th></tr></thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.season}>
+            <th scope="row">{r.season_name}</th>
+            <td>{rate(r.stages.honest.slope_per_year * 10)} {units}</td>
+            <td>{r.stages.naive.significant ? 'trend' : 'no trend'}, {peq(r.stages.naive.p)}</td>
+            <td>{r.stages.honest.significant ? 'trend is real' : 'not proven'}, {peq(r.stages.honest.p)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot><tr><td colSpan="4" className="small">All months: {RULE.place} Seasons: {RULE.season}</td></tr></tfoot>
+    </table>
+  )
+}
+
+// Two NASA Worldview snapshots of the case's box (backend/scripts/fetch_worldview.py), saved with the app.
+function FromSpace({ sp }) {
+  return (
+    <figure className="fromspace">
+      <div className="fromspace-pair">
+        {sp.images.map((im) => (
+          <div key={im.date}>
+            <img src={`${import.meta.env.BASE_URL}${im.file}`} alt={`${im.label}, ${im.date}: true-colour satellite image of the case box`}
+              width="800" height="603" loading="lazy" />
+            <p><strong>{im.date}</strong> · {im.label}</p>
+          </div>
+        ))}
+      </div>
+      <figcaption className="small">
+        What the box looked like from space on two days: {sp.layer}. A photo is an illustration, not evidence: one day
+        says nothing about a trend. The tests below use the monthly series. Credit: {sp.credit}.
+      </figcaption>
+    </figure>
+  )
+}
 
 export default function CasesView() {
   const [cases, setCases] = useState([])
   const [active, setActive] = useState(null)
   const [error, setError] = useState('')
+  const [space, setSpace] = useState({})
 
+  useEffect(() => { api.space().then(setSpace).catch(() => {}) }, [])
   useEffect(() => {
     api.cases().then((list) => {
       setCases(list)
@@ -56,9 +102,11 @@ export default function CasesView() {
       )}
       {active?.series?.map((s) => (
         <article key={s.name} className="case-series">
+          {space[active.id] && <FromSpace sp={space[active.id]} />}
           <SeriesChart series={s} height={280} />
           <Verdict series={s} />
-          <p className="source">Source: {s.source}</p>
+          {s.seasons && <SeasonRows seasons={s.seasons} units={s.units} />}
+          <p className="source">Source: {s.source}{s.reproduce && <> · <a href={s.reproduce} target="_blank" rel="noreferrer">Reproduce in NASA Giovanni</a></>}</p>
         </article>
       ))}
     </section>

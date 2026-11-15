@@ -8,10 +8,12 @@ const EXAMPLES = [
   'At Chennai, which of the five variables have a trend that passes the honest verdict?',
   'Why does soil wetness fool the usual test more than temperature does?',
   'With 30 years of sticky data (phi 0.7), how often does each method find a real trend?',
+  'What should I investigate in a farm near Ludhiana?',
 ]
 
 const TOOL_LABELS = {
   list_variables: 'Listed available NASA variables',
+  suggest_variables: 'Suggested variables for this kind of place',
   atlas_point: 'Read an atlas sample point (offline)',
   atlas_overview: 'Read the global atlas totals (offline)',
   analyze_point: 'Analysed one place with live NASA data',

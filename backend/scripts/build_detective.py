@@ -29,6 +29,7 @@ QUESTIONS = {
     "chennai": "At Chennai, which of the five variables have a trend that passes the honest verdict?",
     "soil": "Why does soil wetness fool the usual test more than temperature does?",
     "lab": "With 30 years of sticky data (phi 0.7), how often does each method find a real trend?",
+    "farm": "What should I investigate in a farm near Ludhiana?",
 }
 
 

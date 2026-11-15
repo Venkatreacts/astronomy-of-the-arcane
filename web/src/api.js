@@ -48,6 +48,17 @@ export const api = {
   caseFile: (id) => getStatic(`cases/${encodeURIComponent(id)}.json`),
   point: ({ lat, lon, param }) =>
     get(`/api/point?lat=${lat}&lon=${lon}&param=${encodeURIComponent(param)}`),
+  // time frame, season, classroom t-test and provable year for a monthly series the page already holds
+  explore: ({ dates, values, start, end, season }) => post('/api/explore', { dates, values, start, end, season }),
+  catalog: () => getStatic('catalog.json'),
+  sweep: ({ lat, lon }) => get(`/api/sweep?lat=${lat}&lon=${lon}`),
+  // the AI only reads the claim (needs the passcode); code runs the tests
+  claimRead: (text, passcode = '') => post('/api/claim/read', { text }, { 'X-Demo-Passcode': passcode }),
+  claimCheck: (claim) => post('/api/claim/check', claim),
+  savedClaims: () => getStatic('claims/index.json'),
+  savedClaim: (id) => getStatic(`claims/${encodeURIComponent(id)}.json`),
+  regions: () => getStatic('regions/index.json'),
+  region: (id) => getStatic(`regions/${encodeURIComponent(id)}.json`),
   scanPresets: () => getStatic('scans/index.json').catch(() => get('/api/scan/presets')),
   scanPreset: (id) => getStatic(`scans/${encodeURIComponent(id)}.json`),
   scan: ([latMin, latMax, lonMin, lonMax]) =>
@@ -66,5 +77,8 @@ export const api = {
     return getStatic(`cells/${f(lat)}_${f(lon)}.json`)
   },
   lab: () => getStatic('lab/lab.json'),
+  witness: () => getStatic('witness.json'),
+  opposites: () => getStatic('opposites.json'),
+  space: () => getStatic('space.json'),
   noiseTrap: ({ phi, trend = 0 }) => getStatic(`noise/phi${phi.toFixed(1)}_trend${trend.toFixed(1)}.json`),
 }

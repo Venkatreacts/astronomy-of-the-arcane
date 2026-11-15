@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
-import SeriesChart from '../components/SeriesChart'
+import Explorer, { Step } from '../components/Explorer'
 import PlacePicker from '../components/PlacePicker'
 import Fingerprint from '../components/Fingerprint'
-import { Stages } from '../components/Verdict'
 import { baseMean, deg, download, fmt, howMuch, km, nearestAtlasPoint, peq, pval, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
+import { useFrame } from '../lib/frame'
+import Info from '../components/Info'
 import { fromCell, fromLive, toCSV, toJSON } from '../lib/record'
 
 const PLACES = [
@@ -36,7 +37,7 @@ function Facts({ r }) {
       <div><dt>Observed</dt><dd>{r.dates[0]} to {r.dates[r.dates.length - 1]}<span>{r.n} of {r.months} months present ({((100 * r.n) / r.months).toFixed(0)}%)</span></dd></div>
       <div><dt>Seasons</dt><dd>{fmt(Math.min(...clim))} to {fmt(Math.max(...clim))} {r.units}<span>lowest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(lo * 3, lo * 3 + 3)}, highest in {'JanFebMarAprMayJunJulAugSepOctNovDec'.slice(hi * 3, hi * 3 + 3)}; removed before testing</span></dd></div>
       <div><dt>Change</dt><dd>{howMuch(r.honest.slope_per_year * 10, r.units, r.dates[0], r.dates[r.dates.length - 1], baseMean(r.dates, r.values))}<span>{ci ? `95% range ${rate(ci[0] * 10)} to ${rate(ci[1] * 10)} per decade` : 'no range available'} (Sen's slope)</span></dd></div>
-      <div><dt>Stickiness</dt><dd>φ = {fmt(r.noise.phi, false, 2)}<span>how much each month's anomaly resembles the last; noise σ = {fmt(r.noise.sigma_n)} {r.units}</span></dd></div>
+      <div><dt>Stickiness <Info term="stickiness" /></dt><dd>φ = {fmt(r.noise.phi, false, 2)}<span>how much each month's anomaly resembles the last; noise σ = {fmt(r.noise.sigma_n)} {r.units}</span></dd></div>
     </dl>
   )
 }
@@ -86,7 +87,16 @@ function Halves({ halves, units }) {
   )
 }
 
+// The whole record as an /api/explore-shaped result, for when the live server cannot be reached.
+const fallbackOf = (r) => ({
+  frame: { start: Number(r.dates[0].slice(0, 4)), end: Number(r.dates[r.dates.length - 1].slice(0, 4)), years: Math.round(r.months / 12), short: false },
+  season: 'all', rule: 'place', ols: null, seasons: null, provable: null,
+  series: { kind: 'monthly', dates: r.dates, values: r.values, anomalies: r.anomalies },
+  stages: { naive: r.naive, pw: r.honest, honest: r.honest, noise: r.noise, years_more_needed: r.years_more_needed },
+})
+
 export default function InvestigateView({ pick }) {
+  const [frame, setFrame] = useFrame()
   const [params, setParams] = useState(ATLAS_VARS)
   const [form, setForm] = useState({ lat: 13.08, lon: 80.27, param: 'T2M' })
   const [record, setRecord] = useState(null)
@@ -164,17 +174,24 @@ export default function InvestigateView({ pick }) {
   }
 
   const r = record
-  const series = r && { dates: r.dates, values: r.values, clim: r.clim, units: r.units, name: `${r.name} at ${deg(r.lat, r.lon)}`,
-    analysis: { anomalies: r.anomalies, honest: r.honest } }
+  const data = useMemo(() => r && { dates: r.dates, values: r.values, units: r.units, name: `${r.name} at ${deg(r.lat, r.lon)}` }, [r])
+  const fallback = useMemo(() => r && fallbackOf(r), [r])
   const stem = r && `${r.id}_${r.lat}_${r.lon}`.replace(/[^\w.-]/g, '_')
 
   return (
     <div className="investigate">
       <h2>Investigate one place</h2>
       <p className="lead">
-        Pick a place and a variable. Every result shows where the numbers came from: the months used, how sticky the
-        data is, and what each of the three tests concludes.
+        Five steps: a variable, a place, a time frame, the time series, and the tests. Every result shows where the
+        numbers came from: the months used, how sticky the data is, and what each test concludes.
       </p>
+      <Step n={1} title="Choose a variable" />
+      <label className="inline">Variable
+        <select value={form.param} onChange={(e) => change(e.target.value)}>
+          {params.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.units})</option>)}
+        </select>
+      </label>
+      <Step n={2} title="Choose a place" />
       <div className="row">
         <div className="pickmap">
           <PlacePicker lat={form.lat} lon={form.lon} onPick={(lat, lon) => {
@@ -203,11 +220,6 @@ export default function InvestigateView({ pick }) {
               <input type="number" step="0.01" min="-180" max="180" required value={form.lon}
                 onChange={(e) => setForm({ ...form, lon: Number(e.target.value) })} />
             </label>
-            <label>Variable
-              <select value={form.param} onChange={(e) => change(e.target.value)}>
-                {params.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.units})</option>)}
-              </select>
-            </label>
             <button className="primary" type="submit" disabled={busy}>{busy ? 'Working…' : 'Run the tests'}</button>
           </form>
           <p className="small">
@@ -223,15 +235,17 @@ export default function InvestigateView({ pick }) {
       </div>
       {r && (
         <div className="result" aria-busy={busy}>
-          <SeriesChart series={series} toggle />
+          <Explorer data={data} fallback={fallback} frame={frame} onFrame={setFrame}
+            card={{ title: `${r.name} at ${deg(r.lat, r.lon)}`, file: stem }} check={{ ids: [r.id], lat: r.lat, lon: r.lon }}>
+            <Explain r={r} />
+            <Halves halves={r.halves} units={r.units} />
+          </Explorer>
+          <h4 className="whole">The whole record</h4>
           <div className="workspace">
             <div>
-              <Stages naive={r.naive} pw={r.honest} />
-              <Explain r={r} />
-              <Halves halves={r.halves} units={r.units} />
+              <Facts r={r} />
             </div>
             <div>
-              <Facts r={r} />
               {cell && <Fingerprint cell={cell} current={r.id} onSelect={change} />}
               <div className="exports">
                 <button onClick={() => download(`${stem}.csv`, toCSV(r), 'text/csv')}>Download CSV</button>
