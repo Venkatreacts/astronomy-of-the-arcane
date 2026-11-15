@@ -175,9 +175,14 @@ export default function AtlasView({ onPick }) {
 
   useEffect(() => {
     if (!varId) return
-    const q = new URLSearchParams({ var: varId, test: TEST_PARAM[stage] })
+    // keep other pages' settings (the time frame) in the same URL
+    const q = new URLSearchParams(window.location.search)
+    q.set('var', varId)
+    q.set('test', TEST_PARAM[stage])
     if (layer !== 'verdict') q.set('layer', layer)
+    else q.delete('layer')
     if (picked) { q.set('lat', picked.lat); q.set('lon', picked.lon) }
+    else { q.delete('lat'); q.delete('lon') }
     window.history.replaceState(null, '', `?${q}${window.location.hash}`)
   }, [varId, stage, layer, picked])
 

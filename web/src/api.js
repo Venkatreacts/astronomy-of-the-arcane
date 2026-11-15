@@ -48,6 +48,10 @@ export const api = {
   caseFile: (id) => getStatic(`cases/${encodeURIComponent(id)}.json`),
   point: ({ lat, lon, param }) =>
     get(`/api/point?lat=${lat}&lon=${lon}&param=${encodeURIComponent(param)}`),
+  // time frame, season, classroom t-test and provable year for a monthly series the page already holds
+  explore: ({ dates, values, start, end, season }) => post('/api/explore', { dates, values, start, end, season }),
+  regions: () => getStatic('regions/index.json'),
+  region: (id) => getStatic(`regions/${encodeURIComponent(id)}.json`),
   scanPresets: () => getStatic('scans/index.json').catch(() => get('/api/scan/presets')),
   scanPreset: (id) => getStatic(`scans/${encodeURIComponent(id)}.json`),
   scan: ([latMin, latMax, lonMin, lonMax]) =>

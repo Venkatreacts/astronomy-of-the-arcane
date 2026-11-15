@@ -13,7 +13,9 @@ function rolling12(y) {
 
 // Monthly anomalies with a 12-month rolling mean, the Sen's slope trend line and its 95% range, or the raw monthly values
 // with each calendar month's normal. Missing months are marked along the bottom, never drawn as zero.
-export default function SeriesChart({ series, height = 340, toggle = false }) {
+// perYear = 1 draws a one-value-per-year (season mean) series: no 12-month mean, years on the axis.
+export default function SeriesChart({ series, height = 340, toggle = false, perYear = 12 }) {
+  const yearly = perYear === 1
   const [view, setView] = useState('anomaly')
   const { dates, analysis, units, name } = series
   const values = series.values
@@ -23,21 +25,22 @@ export default function SeriesChart({ series, height = 340, toggle = false }) {
   const finite = y.filter((v) => v != null).sort((a, b) => a - b)
   const median = finite[Math.floor(finite.length / 2)] ?? 0
   const mid = (firstIdx + lastIdx) / 2
-  const line = (perYear) => [firstIdx, lastIdx].map((i) => median + (perYear / 12) * (i - mid))
+  const line = (rate) => [firstIdx, lastIdx].map((i) => median + (rate / perYear) * (i - mid))
   const ci = analysis.honest.slope_ci_per_year
   const missing = y.map((v, k) => (v == null ? dates[k] : null)).filter(Boolean)
   const anomaly = view === 'anomaly' || !values
 
   const traces = anomaly
     ? [
-        { x: dates, y, type: 'scatter', mode: 'lines', name: 'Monthly anomaly', connectgaps: false,
-          line: { color: 'rgba(139,150,162,0.55)', width: 1 }, hovertemplate: `%{x|%b %Y}: %{y:.3g} ${units} from normal<extra></extra>` },
+        { x: dates, y, type: 'scatter', mode: yearly ? 'lines+markers' : 'lines', name: yearly ? 'Season mean, each year' : 'Monthly anomaly', connectgaps: false,
+          line: { color: yearly ? 'rgba(184,194,204,0.8)' : 'rgba(139,150,162,0.55)', width: 1 }, marker: { size: 5 },
+          hovertemplate: `%{x|${yearly ? '%Y' : '%b %Y'}}: %{y:.3g} ${units} from ${yearly ? 'the season average' : 'normal'}<extra></extra>` },
         ...(ci ? [{ x: [dates[firstIdx], dates[lastIdx], dates[lastIdx], dates[firstIdx]],
           y: [...line(ci[0]), ...line(ci[1]).reverse()], type: 'scatter', mode: 'lines', fill: 'toself',
           fillcolor: 'rgba(86,180,233,0.4)', line: { width: 1, color: 'rgba(86,180,233,0.9)', dash: 'dot' },
           name: '95% range of the rate', hoverinfo: 'skip' }] : []),
-        { x: dates, y: rolling12(y), type: 'scatter', mode: 'lines', name: '12-month mean', connectgaps: false,
-          line: { color: '#f0e442', width: 2 }, hovertemplate: `%{x|%b %Y}: 12-month mean %{y:.3g} ${units}<extra></extra>` },
+        ...(yearly ? [] : [{ x: dates, y: rolling12(y), type: 'scatter', mode: 'lines', name: '12-month mean', connectgaps: false,
+          line: { color: '#f0e442', width: 2 }, hovertemplate: `%{x|%b %Y}: 12-month mean %{y:.3g} ${units}<extra></extra>` }]),
         // drawn last so it sits on top
         { x: [dates[firstIdx], dates[lastIdx]], y: line(analysis.honest.slope_per_year), type: 'scatter', mode: 'lines',
           name: "Trend (Sen's slope)", line: { color: '#e9eef2', width: 3 }, hoverinfo: 'skip' },
@@ -55,7 +58,7 @@ export default function SeriesChart({ series, height = 340, toggle = false }) {
 
   return (
     <figure className="series">
-      {toggle && values && (
+      {toggle && values && !yearly && (
         <div className="switch small" role="group" aria-label="What the chart shows">
           <button className={anomaly ? 'on' : ''} aria-pressed={anomaly} onClick={() => setView('anomaly')}>Seasons removed</button>
           <button className={!anomaly ? 'on' : ''} aria-pressed={!anomaly} onClick={() => setView('raw')}>Raw monthly values</button>
@@ -66,7 +69,7 @@ export default function SeriesChart({ series, height = 340, toggle = false }) {
         layout={{
           title: { text: name, font: { size: 15 }, x: 0, xanchor: 'left' },
           height, margin: { l: 60, r: 12, t: 40, b: 40 },
-          yaxis: { ...AXIS, title: { text: anomaly ? `Difference from normal (${units})` : units }, zeroline: anomaly, zerolinecolor: 'rgba(139,150,162,0.5)' },
+          yaxis: { ...AXIS, title: { text: anomaly ? `Difference from ${yearly ? 'season average' : 'normal'} (${units})` : units }, zeroline: anomaly, zerolinecolor: 'rgba(139,150,162,0.5)' },
           yaxis2: { overlaying: 'y', range: [0, 20], visible: false, fixedrange: true },
           xaxis: { ...AXIS, type: 'date' },
           legend: { orientation: 'h', y: -0.16, font: { size: 12 } }, hovermode: 'closest',

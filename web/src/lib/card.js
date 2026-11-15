@@ -27,6 +27,79 @@ function wrap(g, text, width) {
   return lines
 }
 
+async function save(cv, name) {
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/png'))
+  const url = URL.createObjectURL(blob)
+  const a = Object.assign(document.createElement('a'), { href: url, download: name })
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// The card for one place or one region average over the chosen time frame and season (an /api/explore result).
+export async function seriesCard({ title, file, res, units, label, link }) {
+  await document.fonts?.ready
+  const W = 1200
+  const H = 630
+  const cv = Object.assign(document.createElement('canvas'), { width: W, height: H })
+  const g = cv.getContext('2d')
+  const font = (w, px, fam = 'Barlow') => `${w} ${px}px "${fam}", system-ui, sans-serif`
+  const st = res.stages
+  const real = st.honest.significant
+  g.fillStyle = C.ground
+  g.fillRect(0, 0, W, H)
+  g.fillStyle = real ? '#0072b2' : '#2b3947'
+  g.fillRect(0, 0, 10, H)
+  g.fillStyle = C.meta
+  g.font = font(600, 18, 'Barlow Semi Condensed')
+  g.fillText(`NOISE TRAP  ·  ${label.toUpperCase()}`, 56, 64)
+  g.fillStyle = C.ink
+  g.font = font(700, 40, 'Barlow Semi Condensed')
+  wrap(g, title, W - 112).slice(0, 2).forEach((line, i) => g.fillText(line, 56, 116 + i * 44))
+  g.font = font(700, 72, 'Barlow Semi Condensed')
+  g.fillStyle = real ? C.honest : C.ink2
+  g.fillText(real ? 'The trend is real' : 'Not proven', 56, 236)
+  const ols = res.ols
+  const rows = [
+    [STAGE.usual, st.naive.significant ? 'trend' : 'no trend', `p ${pval(st.naive.p)}`, C.usual],
+    [STAGE.pw, (st.pw ?? st.honest).significant ? 'trend' : 'no trend', `p ${pval((st.pw ?? st.honest).p)}`, C.ink2],
+    [STAGE.honest, real ? 'trend is real' : 'not proven', res.rule === 'season' ? 'four-season rule' : 'single-place rule', C.honest],
+    ...(ols ? [['Classroom t-test', ols.significant ? 'trend' : 'no trend', `p ${pval(ols.p)}`, C.meta]] : []),
+  ]
+  rows.forEach(([name, verdict, p, color], i) => {
+    const y = 300 + i * 44
+    g.fillStyle = C.line
+    g.fillRect(56, y + 14, 700, 1)
+    g.font = font(400, 22)
+    g.fillStyle = C.meta
+    g.fillText(name, 56, y)
+    g.font = font(600, 24)
+    g.fillStyle = color
+    g.fillText(verdict, 330, y)
+    g.font = font(400, 20)
+    g.fillStyle = C.meta
+    g.fillText(p, 530, y)
+  })
+  g.font = font(400, 22)
+  g.fillStyle = C.ink
+  const ci = st.honest.slope_ci_per_year
+  g.fillText(`${rate(st.honest.slope_per_year * 10)} ${units} per decade${ci ? ` (95% range ${rate(ci[0] * 10)} to ${rate(ci[1] * 10)})` : ''}, Sen's slope`, 56, 494)
+  const pr = res.provable
+  if (pr) {
+    g.fillStyle = C.ink2
+    g.fillText(pr.first_year ? `Provable from ${pr.first_year} (record starting ${res.frame.start}).`
+      : `Not provable yet${pr.years_more_needed > 0 ? `, about ${Math.ceil(pr.years_more_needed)} more years` : ''}.`, 56, 526)
+  }
+  g.fillStyle = C.line
+  g.fillRect(56, 546, W - 112, 1)
+  g.font = font(400, 16)
+  g.fillStyle = C.meta
+  wrap(g, res.rule === 'season' ? RULE.season : RULE.place, W - 112).slice(0, 2).forEach((line, i) => g.fillText(line, 56, 572 + i * 20))
+  g.fillText(`NASA POWER monthly data, ${label}.  ${link ?? ''}`.slice(0, 150), 56, 616)
+  await save(cv, `noise-trap_${file}_${res.frame.start}-${res.frame.end}_${res.season}.png`)
+}
+
 export async function verdictCard({ atlas, cell, record, mean = null, link }) {
   await document.fonts?.ready
   const W = 1200

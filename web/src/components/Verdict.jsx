@@ -3,7 +3,8 @@
 import { baseMean, fmt, howMuch, peq, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
 
-export function Stages({ naive, pw }) {
+// rule = 'season' when one of four seasons is shown: its honest verdict is the four-season FDR result.
+export function Stages({ naive, pw, honest = pw, rule = 'place' }) {
   return (
     <dl className="verdicts three">
       <div className="vrow u">
@@ -18,8 +19,8 @@ export function Stages({ naive, pw }) {
       </div>
       <div className="vrow h">
         <dt>3 · {STAGE.honest}</dt>
-        <dd><span className="vword">{pw.significant ? 'Trend is real' : 'Not proven'}</span>
-          <span className="small rule">{RULE.place}</span></dd>
+        <dd><span className="vword">{honest.significant ? 'Trend is real' : 'Not proven'}</span>
+          <span className="small rule">{RULE[rule]}</span></dd>
       </div>
     </dl>
   )
