@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import Plot from '../components/Plot'
+import Explorer, { Step } from '../components/Explorer'
 import { api } from '../api'
 import { decades, deg, fmt, pct, pval, rate } from '../lib/format'
 import { RULE, STAGE } from '../lib/stages'
+import { useFrame } from '../lib/frame'
+
+const GLOBE = { id: 'globe', name: 'Whole globe (land sample)', bbox: [-90, 90, -180, 180] }
+const VARS = [['T2M', 'Air temperature'], ['PRECTOTCORR', 'Rainfall'], ['GWETROOT', 'Root-zone soil wetness'], ['RH2M', 'Relative humidity'], ['WS2M', 'Wind speed at 2 m']]
 
 // purple = falling, green = rising: orange and blue are reserved for the tests. The middle is an opaque
 // dark grey, so a weak trend is visibly "near zero" instead of looking like an empty map.
@@ -177,11 +182,25 @@ export default function ScanView() {
   const [other, setOther] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [frame, setFrame] = useFrame()
+  const [avgVar, setAvgVar] = useState('T2M')
+  const [avg, setAvg] = useState(null)
+
+  // the area-average series for a listed region or the globe (pre-computed, works offline)
+  useEffect(() => {
+    setAvg(null)
+    if (active) api.region(active).then(setAvg).catch(() => setAvg(null))
+  }, [active])
+  const avgData = useMemo(() => {
+    const v = avg?.vars[avgVar]
+    return v && { dates: v.dates, values: v.values, units: v.units, name: `${v.name}, average over ${avg.name}`, points: v.points, preset: v.default }
+  }, [avg, avgVar])
 
   async function run(b = box, preset = null) {
     setBusy(true)
     setError('')
     setActive(preset?.id ?? null)
+    if (preset?.id === GLOBE.id) { setScan(null); setBusy(false); return }
     try {
       // Presets are pre-computed into the web app (works offline); a custom box needs the live backend.
       setScan(preset ? await api.scanPreset(preset.id).catch(() => api.scan(b)) : await api.scan(b))
@@ -219,6 +238,14 @@ export default function ScanView() {
         Every NASA POWER grid point in a box (about 0.5° apart), five variables, three tests. Then a separate check:
         are there connected patches of change bigger than chance makes on the same data shuffled in time?
       </p>
+      <Step n={1} title="Choose a variable" />
+      <label className="inline">Variable for the average
+        <select value={avgVar} onChange={(e) => setAvgVar(e.target.value)}>
+          {VARS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+      </label>
+      <p className="small">The pixel maps further down show all five variables at once.</p>
+      <Step n={2} title="Choose a region, up to the whole globe" />
       <div className="investigate"><div className="row">
         <Locator presets={presets} active={active} compare={compareId} onPick={pick} />
         <div>
@@ -226,6 +253,7 @@ export default function ScanView() {
             {presets.map((p) => (
               <button key={p.id} className={`chip ${p.id === active ? 'on' : ''}`} aria-pressed={p.id === active} disabled={busy} onClick={() => pick(p)}>{p.name}</button>
             ))}
+            <button className={`chip ${active === GLOBE.id ? 'on' : ''}`} aria-pressed={active === GLOBE.id} disabled={busy} onClick={() => pick(GLOBE)}>{GLOBE.name}</button>
           </div>
           <form className="fields" onSubmit={(e) => { e.preventDefault(); run() }}>
             {labels.map((label, i) => (
@@ -240,8 +268,23 @@ export default function ScanView() {
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div></div>
+      <h3 className="avg">Average over this box</h3>
+      {avgData ? (
+        <>
+          <p className="small">
+            One series per variable: each month, the mean of {avgData.points.toLocaleString()} {active === GLOBE.id ? 'land sample points (one every 5°)' : 'grid points in the box'},
+            weighted by the cosine of latitude (a degree of longitude is shorter near the poles). The same three stages
+            run on it. One series is one test, so the single-place rule applies.
+          </p>
+          <Explorer data={avgData} preset={avgData.preset} frame={frame} onFrame={setFrame}
+            card={{ title: avgData.name, file: `${active}_${avgVar}` }} />
+        </>
+      ) : <p className="small">{active ? 'Loading the average…' : 'The average is pre-computed for the listed regions and the whole globe. A custom box shows the pixel maps only.'}</p>}
       {scan && (
         <div aria-busy={busy}>
+          <h3>Every pixel in the box</h3>
+          <p className="small">All five variables, 1981–2025, all months: each pixel tested on its own, then the map rule across the box.
+            The time frame and season above apply to the average only.</p>
           <p className="claim wide">
             {s.n_tests.toLocaleString()} pixel tests. The {STAGE.usual.toLowerCase()} flags <strong className="u">{s.naive_hits}</strong>.
             Then two different questions about the same stickiness-free p-values:
