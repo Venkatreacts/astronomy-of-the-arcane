@@ -117,3 +117,16 @@ def test_explore_endpoint():
     assert client.post("/api/explore", json={"dates": DATES, "values": x, "season": "winter"}).status_code == 400
     assert client.post("/api/explore", json={"dates": DATES, "values": x, "start": 2023, "end": 2025}).status_code == 400
     assert client.post("/api/explore", json={"dates": DATES[:-1], "values": x}).status_code == 400
+
+
+def test_region_average_files_are_built():
+    import json
+    root = pathlib.Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "regions"
+    index = json.loads((root / "index.json").read_text(encoding="utf-8"))
+    assert len(index) == 10 and index[-1]["id"] == "globe"
+    for r in index:
+        d = json.loads((root / f"{r['id']}.json").read_text(encoding="utf-8"))
+        assert set(d["vars"]) == {"T2M", "PRECTOTCORR", "GWETROOT", "RH2M", "WS2M"}
+        v = d["vars"]["T2M"]
+        assert len(v["dates"]) == len(v["values"]) == 540 and v["points"] > 0
+        assert {"stages", "ols", "seasons", "provable"} <= set(v["default"])
