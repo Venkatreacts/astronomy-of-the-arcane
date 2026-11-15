@@ -11,10 +11,71 @@ Team **Astronomy of the Arcane**, NASA International Space Apps Challenge 2026 (
 - Antik Ray
 - Pranav Gupta
 
-## Project Overview
-_The team writes this section in its own words (what problem, for whom, our approach, NASA data used)._
+## Project Overview: Noise Trap
+**Live app: [noise-trap.vercel.app](https://noise-trap.vercel.app)**
 
-See [`PLAN.md`](PLAN.md) for roles and schedule, and [`docs/validation.md`](docs/validation.md) for the test results.
+**Is that trend real, or just noise?** Noise Trap answers that question for any place on Earth, using NASA data. It also shows, side by side, how the standard test gets the answer wrong.
+
+### The problem
+The test most people use for trends (Mann-Kendall) assumes each month is independent. Climate data is not: a warm month is usually followed by another warm month, and wet soil stays wet. This "stickiness" (autocorrelation) makes the usual test far too confident.
+- On simulated data with **no trend at all**, the usual test reports a trend **32%** of the time, where it should be 5%.
+- On **real NASA data**, the usual test says root-zone soil wetness changed at **71%** of 721 land points. Only **19%** survive an honest test.
+- Chennai warming: the usual test gives p = 0.0027, which looks certain. The honest answer is p = 0.054: **not proven yet**.
+
+### Our approach: three stages, always shown together
+1. **Usual test:** plain Mann-Kendall, kept on purpose so users can see where it goes wrong.
+2. **Stickiness removed:** pre-whitening (Kulkarni & von Storch 1995). We chose it by simulation over **six** competing corrections. It was the only one near 5% false alarms at every level of stickiness.
+3. **Honest verdict:** Benjamini-Hochberg false discovery rate control (q = 0.10) when many places, seasons or variables are tested at once.
+
+Every answer is in plain words ("trend is real", "not proven yet", "the data point the other way"). It comes with Sen's slope per decade, a 95% range, and, when the trend is not proven, **how many more years of data would settle it** (Weatherhead et al. 1998). Noise Trap says *whether* something changed, never *why*.
+
+### How it meets the challenge
+| Challenge step | Where it lives in Noise Trap |
+|---|---|
+| 1. Choose a variable | 19 NASA POWER variables. Users who don't know the names answer three plain questions and get suggested variables, each with a one-line definition. |
+| 2. Choose a region | Any point on a world map, nine preset regions, or the whole-globe atlas |
+| 3. Choose a time frame | 1981-2025, any sub-period, any season |
+| 4. Build the time series | Monthly NASA record, seasons removed; missing months stay missing and are never filled in |
+| 5. Test significance | The three stages above, plus the years still needed |
+
+### What you can do with it
+- **Global Trend Atlas:** an interactive globe of 2,016 sample points and 5 variables. Switch from the usual test to the honest verdict and watch the false alarms disappear.
+- **The trap:** pure noise with a stickiness slider. The usual test invents trends; the honest one stays clean.
+- **Investigate one place, Scan a region, Case files**, including a satellite case: summer haze over Wisconsin from MODIS on Aqua, +0.071 per decade, honest p = 0.023.
+- **Check a headline:** paste a claim and get a verdict (saved examples: Chennai, Sahel, Madrid).
+- **Second witness:** a satellite record and a model record tested independently, to see whether they agree.
+- **Train your eye:** a ten-round game. Guess real trend or sticky noise, then see both tests.
+- **AI Detective:** ask in plain English. Gemini calls our tools, and every number in its answer is checked against the tool output.
+- **MCP connector:** Claude, ChatGPT, Cursor or any MCP client can call the same 10 tools at `/mcp`.
+
+### NASA data used
+- **NASA POWER** (MERRA-2 reanalysis): monthly, 1981-2025. It is labelled as a model everywhere it appears.
+- **NASA Giovanni** area averages: **MODIS Aqua** aerosol optical depth, **GPM IMERG** rainfall, **MERRA-2** aerosols. The dataset, box and missing-value code are read from each file's header, and a case file carries a `reproduce` link to the exact Giovanni request.
+- **NASA Worldview** imagery (illustration only; the charts are the evidence).
+
+### Proof, where the truth is known ([`docs/validation.md`](docs/validation.md))
+| Check | Usual test | Noise Trap |
+|---|---|---|
+| False alarms on sticky noise (phi = 0.6, should be 5%) | 32.0% | **3.8%** |
+| A 30x30 map of pure noise: pixels flagged | 15.6% | **0.0%** |
+| False discoveries when a real trend is planted in half a map | n/a | about 1 in 15 (target: under 1 in 10) |
+| 95% range contains the true rate, with 30% of months missing | n/a | **93-98%** |
+
+On the real NASA atlas, strong signals barely move (air temperature: 87% of points with the usual test, 79% with the honest verdict), while sticky ones collapse (soil wetness: 71% to 19%). So we are not claiming that nothing changes. We show which changes the data can prove.
+
+### Built to be checked
+- Our Mann-Kendall matches the reference library `pymannkendall` to **1e-10** (`backend/tests/test_mk.py`).
+- **153 backend tests** (pytest) and **5 frontend tests** (node) cover the statistics, the scanner, the atlas, the lab, the Detective, the MCP connector and every published data file.
+- There is no database: every result is a static JSON file anyone can open. Most of the app works with no server at all.
+- API keys stay on the server. Live AI questions need a passcode, so a public link cannot use up the key.
+
+### Limits (stated in the app too)
+- Simulations model one-month memory (AR(1)) only.
+- Only straight-line (monotonic) trends are tested.
+- With very sticky data (phi ≥ 0.8), the honest test needs a longer record before it can detect a trend.
+- MERRA-2 is a reanalysis model, not a direct observation.
+
+See [`PLAN.md`](PLAN.md) for roles and schedule.
 
 ## Getting Started
 
