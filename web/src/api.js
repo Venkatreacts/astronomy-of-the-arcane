@@ -74,5 +74,7 @@ export const api = {
     return getStatic(`cells/${f(lat)}_${f(lon)}.json`)
   },
   lab: () => getStatic('lab/lab.json'),
+  witness: () => getStatic('witness.json'),
+  opposites: () => getStatic('opposites.json'),
   noiseTrap: ({ phi, trend = 0 }) => getStatic(`noise/phi${phi.toFixed(1)}_trend${trend.toFixed(1)}.json`),
 }
