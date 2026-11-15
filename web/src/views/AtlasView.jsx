@@ -21,18 +21,28 @@ const STAGES = [
   { id: 'fdr', label: STAGE.honest, flag: 'honest', frac: 'honest_fraction', color: HONEST },
 ]
 const LAYERS = [
-  { id: 'verdict', label: 'Verdict' },
   { id: 'rate', label: 'Trend size' },
+  { id: 'verdict', label: 'Verdict' },
   { id: 'phi', label: 'Stickiness' },
   { id: 'coverage', label: 'Data coverage' },
   { id: 'years', label: 'Play the years' },
 ]
 const TEST_PARAM = { naive: 'usual', pw: 'pw', fdr: 'honest' }
-const DIVERGING = [[0, '#cc79a7'], [0.5, '#2a3540'], [1, '#009e73']]
+// Trend colours per variable, falling end first: ColorBrewer RdBu, PRGn and BrBG, all colour-blind safe.
+const PALETTE = {
+  T2M: ['#2166ac', '#67a9cf', '#d1e5f0', '#f7f7f7', '#fddbc7', '#ef8a62', '#b2182b'],
+  WS2M: ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837'],
+  wet: ['#8c510a', '#d8b365', '#f6e8c3', '#f5f5f5', '#c7eae5', '#5ab4ac', '#01665e'], // rain, soil, humidity
+}
+const palette = (id) => {
+  const p = PALETTE[id] ?? PALETTE.wet
+  return { ramp: scale(p.map((c, i) => [i / (p.length - 1), c])), css: `linear-gradient(90deg,${p.join(',')})`, down: p[1], up: p[5] }
+}
+const FAINT = 0.22 // a point that fails the selected test is drawn at this strength
+const UNIT = { degC: '°C' }
 const STICKY = [[0, '#1f2b36'], [1, '#f0e442']]
 const COVER = [[0, '#f0e442'], [1, '#2a3540']]
 const QUIET = rgb('#1f2b36')
-const divRamp = scale(DIVERGING)
 const stickyRamp = scale(STICKY)
 const coverRamp = scale(COVER)
 const sweepRGB = (hex) => rgb(hex).join(',')
@@ -98,19 +108,50 @@ function Spark({ values, at, first }) {
   )
 }
 
-function Legend({ layer, stage, atlas, rateMax }) {
+// Significance is a strength, not a colour: full where the selected test finds a trend, faint where it does not.
+function Strength({ stage, pal, falseAlarms }) {
+  const s = STAGES.find((x) => x.id === stage)
+  const [yes, no] = stage === 'fdr' ? ['trend is real', 'not proven'] : ['trend at p < 0.05', 'no trend by this test']
+  return (
+    <ul className="legend-row" aria-label="What full and faint colour mean">
+      <li><span className="swatch" style={{ background: pal.up }} />Full colour: {s.label.toLowerCase()} says {yes}</li>
+      <li><span className="swatch" style={{ background: pal.up, opacity: FAINT }} />Faint: {no}</li>
+      {stage === 'fdr' && (
+        <li><span className="ring-key" />False alarms ({falseAlarms.toLocaleString()}): the usual test flagged them, the honest verdict rejects them</li>
+      )}
+      {stage === 'fdr' && <li className="rule">{RULE.map}</li>}
+    </ul>
+  )
+}
+
+function Legend({ layer, stage, atlas, rateMax, pal, falseAlarms }) {
   if (layer === 'verdict') {
-    const s = STAGES.find((x) => x.id === stage)
     return (
-      <ul className="legend-row" aria-label="Legend">
-        <li><span className="swatch" style={{ background: s.color }} />{s.label}: {stage === 'fdr' ? 'trend is real' : 'trend at p < 0.05'}</li>
-        <li><span className="swatch" style={{ background: '#1f2b36' }} />{stage === 'fdr' ? 'not proven' : 'no trend shown by this test'}</li>
-        {stage === 'fdr' && <li className="rule">{RULE.map}</li>}
-      </ul>
+      <>
+        <ul className="legend-row" aria-label="Legend">
+          <li><span className="swatch" style={{ background: pal.up }} />{atlas.rising}</li>
+          <li><span className="swatch" style={{ background: pal.down }} />{atlas.falling}</li>
+        </ul>
+        <Strength stage={stage} pal={pal} falseAlarms={falseAlarms} />
+      </>
+    )
+  }
+  if (layer === 'rate') {
+    const unit = UNIT[atlas.units] ?? atlas.units
+    return (
+      <div className="ramp" aria-label="Legend">
+        <span className="ramp-title">Trend, {unit} per decade</span>
+        <span className="ramp-bar" style={{ background: pal.css }} />
+        <span className="ramp-ticks">
+          {[-1, -0.5, 0, 0.5, 1].map((f) => <span key={f}>{f === -1 ? '≤ ' : f === 1 ? '≥ ' : ''}{f ? rate(f * rateMax) : '0'}</span>)}
+        </span>
+        <span className="ramp-ends"><span>{atlas.falling}</span><span>{atlas.rising}</span></span>
+        <span className="ramp-note">Symmetric around zero; the ends are the 95th percentile of the trend size.</span>
+        <Strength stage={stage} pal={pal} falseAlarms={falseAlarms} />
+      </div>
     )
   }
   const spec = {
-    rate: { bg: 'linear-gradient(90deg,#cc79a7,#2a3540,#009e73)', lo: rate(-rateMax), hi: `${rate(rateMax)} ${atlas.units}/decade`, note: `Faint squares: no trend by the ${STAGES.find((x) => x.id === stage).label.toLowerCase()}.` },
     phi: { bg: 'linear-gradient(90deg,#1f2b36,#f0e442)', lo: 'φ 0', hi: 'φ 1', note: 'How much each month resembles the last (lag-1 autocorrelation of the detrended anomalies).' },
     coverage: { bg: 'linear-gradient(90deg,#f0e442,#2a3540)', lo: '80% of months', hi: '100%', note: 'Share of months with data. Points under 80% are not tested.' },
   }[layer]
@@ -129,7 +170,10 @@ export default function AtlasView({ onPick }) {
   const [atlas, setAtlas] = useState(null)
   // links carry ?var=&test=&layer=&lat=&lon=, so any view of the globe can be shared
   const [stage, setStage] = useState(() => ({ honest: 'fdr', pw: 'pw' })[query.get('test')] ?? 'naive')
-  const [layer, setLayer] = useState(() => (LAYERS.some((l) => l.id === query.get('layer')) ? query.get('layer') : 'verdict'))
+  const [layer, setLayer] = useState(() => (LAYERS.some((l) => l.id === query.get('layer')) ? query.get('layer') : 'rate'))
+  const [flat, setFlat] = useState(false)
+  const [squares, setSquares] = useState(false)
+  const [slow, setSlow] = useState(false)
   const [picked, setPicked] = useState(null)
   const [focus, setFocus] = useState(null)
   const [history, setHistory] = useState(readHistory)
@@ -176,7 +220,7 @@ export default function AtlasView({ onPick }) {
   useEffect(() => {
     if (!varId) return
     const q = new URLSearchParams({ var: varId, test: TEST_PARAM[stage] })
-    if (layer !== 'verdict') q.set('layer', layer)
+    if (layer !== 'rate') q.set('layer', layer)
     if (picked) { q.set('lat', picked.lat); q.set('lon', picked.lon) }
     window.history.replaceState(null, '', `?${q}${window.location.hash}`)
   }, [varId, stage, layer, picked])
@@ -276,22 +320,28 @@ export default function AtlasView({ onPick }) {
   const tell = useMemo(() => (atlas ? describe(atlas) : null), [atlas])
 
   const now = STAGES.find((s) => s.id === stage)
+  const pal = useMemo(() => palette(atlas?.id), [atlas])
   const showYears = layer === 'years' && yearData && year != null
   const paint = (c) => {
-    if (layer === 'rate') return [...divRamp(0.5 + c.rate / (2 * rateMax)), c[now.flag] ? 1 : 0.28, 1]
+    const strength = c[now.flag] ? 1 : FAINT
+    if (layer === 'rate') return [...pal.ramp(0.5 + c.rate / (2 * rateMax)), strength, 1]
     if (layer === 'phi') return [...stickyRamp(c.phi), 1, 1]
     if (layer === 'coverage') return [...coverRamp(((c.coverage ?? 1) - 0.8) / 0.2), 1, 1]
     if (layer === 'years') {
       const v = showYears ? yearData.map.get(`${c.lat},${c.lon}`)?.[year - years.years[0]] : null
-      return v == null ? [...QUIET, 0.5, 0.7] : [...divRamp(0.5 + v / (2 * yearData.max)), 1, 1]
+      return v == null ? [...QUIET, 0.5, 0.7] : [...pal.ramp(0.5 + v / (2 * yearData.max)), 1, 1]
     }
-    return c[now.flag] ? [...rgb(now.color), 1, 1] : [...QUIET, 0.95, 0.72]
+    return [...rgb(c.rate > 0 ? pal.up : pal.down), strength, 1]
   }
   const paintKey = `${atlas?.id}|${layer}|${layer === 'years' ? `${Boolean(showYears)}|${year}` : stage}`
+  // on the honest verdict, ring the points the usual test flagged and the honest verdict rejects
+  const isFalseAlarm = (c) => c.naive && !c.honest
+  const rings = stage === 'fdr' && (layer === 'rate' || layer === 'verdict')
+  const falseAlarms = atlas ? atlas.cells.filter(isFalseAlarm).length : 0
 
   const flagged = atlas ? atlas.cells.filter((c) => c[now.flag]) : []
   const up = flagged.filter((c) => c.rate > 0).length
-  const land = atlas && atlas.n_cells < Math.max(...index.map((v) => v.n_cells))
+  const land = Boolean(atlas) && atlas.n_cells < Math.max(...index.map((v) => v.n_cells))
   const full = atlas && atlas.cells.every((c) => (c.coverage ?? 1) === 1)
 
   return (
@@ -299,10 +349,19 @@ export default function AtlasView({ onPick }) {
       <div className="globe">
         {atlas ? (
           <Globe cells={atlas.cells} step={atlas.step_deg} paint={paint} paintKey={paintKey} sweep={layer !== 'years'}
+            mark={rings ? isFalseAlarm : null}
             sweepColor={sweepRGB(layer === 'verdict' || layer === 'rate' ? now.color : '#56b4e9')}
             picked={picked} focus={focus} onPick={(c) => pick(c)} describe={tell} height={GLOBE_H}
-            label={`Globe of ${atlas.name.toLowerCase()} at ${atlas.n_cells} sample points. Drag or use the arrow keys to turn it; click a square to read it.`} />
+            flat={flat} squares={squares} landOnly={land} onSlow={() => { setSquares(true); setSlow(true) }}
+            label={`${flat ? 'Flat map' : 'Globe'} of ${atlas.name.toLowerCase()} at ${atlas.n_cells} sample points. Drag or use the arrow keys to ${flat ? 'move' : 'turn'} it, plus and minus to zoom; click a point to read it.`} />
         ) : <div className="globe-wait" style={{ height: GLOBE_H }}>{error ? '' : 'Loading the world…'}</div>}
+        {atlas && (
+          <p className="globe-note">
+            {squares
+              ? (slow ? 'Smooth colour was too slow to draw on this device, so each sample point is shown as its own 5° square.' : 'Each sample point is shown as its own 5° square.')
+              : 'Colour is interpolated between 5-degree sample points for display. Tests are run at the sample points only.'}
+          </p>
+        )}
         {showYears && (
           <div className="year-stamp">
             <span className="y">{year}</span>
@@ -326,7 +385,7 @@ export default function AtlasView({ onPick }) {
         <div className="switch three" role="group" aria-label="Which test to show">
           {STAGES.map((s) => (
             <button key={s.id} className={stage === s.id ? `on ${s.id}` : ''} aria-pressed={stage === s.id}
-              onClick={() => { setStage(s.id); if (layer !== 'rate') setLayer('verdict') }}>
+              onClick={() => { setStage(s.id); if (layer !== 'rate' && layer !== 'verdict') setLayer('rate') }}>
               <span>{s.label}</span>
               {atlas && <span className="n">{pct(atlas[s.frac] ?? (s.id === 'pw' ? null : 0))}</span>}
             </button>
@@ -344,7 +403,11 @@ export default function AtlasView({ onPick }) {
             <button key={l.id} className={l.id === layer ? 'on' : ''} aria-pressed={l.id === layer} onClick={() => setLayer(l.id)}>{l.label}</button>
           ))}
         </div>
-        {atlas && layer !== 'years' && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} />}
+        <div className="view-opts" role="group" aria-label="How the map is drawn">
+          <label><input type="checkbox" checked={flat} onChange={(e) => setFlat(e.target.checked)} />Flat map</label>
+          <label><input type="checkbox" checked={squares} onChange={(e) => setSquares(e.target.checked)} />Show sample squares</label>
+        </div>
+        {atlas && layer !== 'years' && <Legend layer={layer} stage={stage} atlas={atlas} rateMax={rateMax} pal={pal} falseAlarms={falseAlarms} />}
         {layer === 'years' && (
           <div className="player">
             {!yearData ? <p className="small">Loading 45 years of {atlas?.name.toLowerCase()}…</p> : (
@@ -359,10 +422,10 @@ export default function AtlasView({ onPick }) {
                   <output>{year}</output>
                 </div>
                 <div className="ramp">
-                  <span className="ramp-bar" style={{ background: 'linear-gradient(90deg,#cc79a7,#2a3540,#009e73)' }} />
+                  <span className="ramp-bar" style={{ background: pal.css }} />
                   <span className="ramp-ends"><span>{fmt(-yearData.max, true)}</span><span>{fmt(yearData.max, true)} {atlas.units}</span></span>
                   <span className="ramp-note">
-                    Each square is that year minus its own 1981–2025 normal. Watch how much it jumps from year to year:
+                    Each point is that year minus its own 1981–2025 normal. Watch how much it jumps from year to year:
                     that is the noise the usual test mistakes for trends. Verdicts come only from the monthly tests.
                   </span>
                 </div>
@@ -427,7 +490,7 @@ export default function AtlasView({ onPick }) {
           </div>
         )}
         <p className="credit">
-          Drag to turn the globe · click a square to read it · NASA POWER monthly data, {atlas?.years.join('–')}, one
+          Drag to turn the globe · wheel or pinch to zoom · click a point to read it · NASA POWER monthly data, {atlas?.years.join('–')}, one
           sample point per 5° · {STAGE.usual}: Mann-Kendall p &lt; 0.05 · {STAGE.pw}: the same test after
           pre-whitening · {STAGE.honest}: map rule, false discovery rate 10% across all points
         </p>
