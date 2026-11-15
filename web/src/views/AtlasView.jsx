@@ -34,11 +34,17 @@ const PALETTE = {
   WS2M: ['#762a83', '#af8dc3', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#7fbf7b', '#1b7837'],
   wet: ['#8c510a', '#d8b365', '#f6e8c3', '#f5f5f5', '#c7eae5', '#5ab4ac', '#01665e'], // rain, soil, humidity
 }
+// The white middle would glow on the dark globe and outshine strong trends, so strength also grows with
+// trend size: x is the trend as a fraction of the colour bar's end (-1 to 1).
+const SMALL = 0.35
+const sized = (x) => SMALL + (1 - SMALL) * Math.min(1, Math.abs(Number.isFinite(x) ? x : 0))
 const palette = (id) => {
   const p = PALETTE[id] ?? PALETTE.wet
-  return { ramp: scale(p.map((c, i) => [i / (p.length - 1), c])), css: `linear-gradient(90deg,${p.join(',')})`, down: p[1], up: p[5] }
+  // the bar is drawn the way the map is: each stop at its own strength over the dark ground (0.85 = data alpha)
+  const stops = p.map((c, i) => `rgb(${rgb(c).join(' ')} / ${(0.85 * sized((2 * i) / (p.length - 1) - 1)).toFixed(2)})`)
+  return { ramp: scale(p.map((c, i) => [i / (p.length - 1), c])), css: `linear-gradient(90deg,${stops.join(',')})`, down: p[1], up: p[5] }
 }
-const FAINT = 0.22 // a point that fails the selected test is drawn at this strength
+const FAINT = 0.22 // a point that fails the selected test is drawn at this share of its strength
 const UNIT = { degC: '°C' }
 const STICKY = [[0, '#1f2b36'], [1, '#f0e442']]
 const COVER = [[0, '#f0e442'], [1, '#2a3540']]
@@ -146,7 +152,7 @@ function Legend({ layer, stage, atlas, rateMax, pal, falseAlarms }) {
           {[-1, -0.5, 0, 0.5, 1].map((f) => <span key={f}>{f === -1 ? '≤ ' : f === 1 ? '≥ ' : ''}{f ? rate(f * rateMax) : '0'}</span>)}
         </span>
         <span className="ramp-ends"><span>{atlas.falling}</span><span>{atlas.rising}</span></span>
-        <span className="ramp-note">Symmetric around zero; the ends are the 95th percentile of the trend size.</span>
+        <span className="ramp-note">Symmetric around zero; the ends are the 95th percentile of the trend size. Small trends are drawn see-through, so they do not outshine large ones.</span>
         <Strength stage={stage} pal={pal} falseAlarms={falseAlarms} />
       </div>
     )
@@ -324,12 +330,12 @@ export default function AtlasView({ onPick }) {
   const showYears = layer === 'years' && yearData && year != null
   const paint = (c) => {
     const strength = c[now.flag] ? 1 : FAINT
-    if (layer === 'rate') return [...pal.ramp(0.5 + c.rate / (2 * rateMax)), strength, 1]
+    if (layer === 'rate') return [...pal.ramp(0.5 + c.rate / (2 * rateMax)), strength * sized(c.rate / rateMax), 1]
     if (layer === 'phi') return [...stickyRamp(c.phi), 1, 1]
     if (layer === 'coverage') return [...coverRamp(((c.coverage ?? 1) - 0.8) / 0.2), 1, 1]
     if (layer === 'years') {
       const v = showYears ? yearData.map.get(`${c.lat},${c.lon}`)?.[year - years.years[0]] : null
-      return v == null ? [...QUIET, 0.5, 0.7] : [...pal.ramp(0.5 + v / (2 * yearData.max)), 1, 1]
+      return v == null ? [...QUIET, 0.5, 0.7] : [...pal.ramp(0.5 + v / (2 * yearData.max)), sized(v / yearData.max), 1]
     }
     return [...rgb(c.rate > 0 ? pal.up : pal.down), strength, 1]
   }

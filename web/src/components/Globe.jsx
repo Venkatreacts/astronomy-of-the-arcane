@@ -81,9 +81,18 @@ function makeGrid(cells, step) {
 // Bilinear field on a 0.5° equirectangular texture from per-point colours [r, g, b, alpha, scale].
 // Colours are blended premultiplied, so a faint point does not tint its strong neighbour; a missing
 // neighbour (soil wetness has no ocean points) is left out and the rest are re-weighted.
-function texture(grid, col, mask) {
+// The land fill is baked in under the data, so a frame does not have to draw the land polygons.
+const LAND = [22, 34, 46]
+function texture(grid, col, mask, land) {
   const { idx, lat0, nlat, nlon, lon0, step } = grid
   const out = new Uint8ClampedArray(TW * TH * 4)
+  if (land) {
+    for (let k = 0; k < land.length; k++) {
+      if (!land[k]) continue
+      out.set(LAND, k * 4)
+      out[k * 4 + 3] = land[k]
+    }
+  }
   let r = 0, gr = 0, b = 0, a = 0, w = 0
   const add = (k, wt) => {
     const c = idx[k]
@@ -118,31 +127,35 @@ function texture(grid, col, mask) {
       add(rb + ib, fx * fy)
       if (w < 0.15 || a <= 0) continue
       const o = (ty * TW + tx) * 4
-      out[o] = r / a
-      out[o + 1] = gr / a
-      out[o + 2] = b / a
-      out[o + 3] = (a / w) * DATA_ALPHA * m
+      const da = ((a / w) * DATA_ALPHA * m) / 255 // data over whatever land is already here
+      const ba = (out[o + 3] / 255) * (1 - da)
+      const A = da + ba
+      out[o] = ((r / a) * da + out[o] * ba) / A
+      out[o + 1] = ((gr / a) * da + out[o + 1] * ba) / A
+      out[o + 2] = ((b / a) * da + out[o + 2] * ba) / A
+      out[o + 3] = A * 255
     }
   }
   return out
 }
 
 function buildTex(g, col) {
-  const data = texture(g.grid, col, g.landOnly ? g.mask : null)
+  const data = texture(g.grid, col, g.landOnly ? g.mask : null, g.mask)
   const cvs = document.createElement('canvas')
   cvs.width = TW
   cvs.height = TH
   cvs.getContext('2d').putImageData(new ImageData(data, TW, TH), 0, 0)
-  if (import.meta.env.DEV) { // self-check: the field at a sample point is that point's colour
-    const i = g.cells.findIndex((c, k) => col[k * 5 + 3] > 0.5 && col[k * 5 + 4] >= 0.02)
+  if (import.meta.env.DEV) { // self-check: the field at a strong ocean sample point is that point's colour
+    const at = (c) => Math.floor((90 - c.lat) * TR) * TW + Math.floor((c.lon + 180) * TR)
+    const i = g.cells.findIndex((c, k) => col[k * 5 + 3] > 0.99 && col[k * 5 + 4] >= 0.02 && !g.mask?.[at(c)])
     const c = g.cells[i]
-    const o = c && (Math.floor((90 - c.lat) * TR) * TW + Math.floor((c.lon + 180) * TR)) * 4
+    const o = c && at(c) * 4
     if (c && data[o + 3]) console.assert([0, 1, 2].every((k) => Math.abs(data[o + k] - col[i * 5 + k]) < 24), 'globe field off at a sample point')
   }
   return { col, data, cvs }
 }
 
-// land minus lakes on the texture grid, for variables measured on land only
+// land minus lakes on the texture grid: the land fill under the field, and the cut for land-only variables
 function landMask(earth) {
   const c = document.createElement('canvas')
   c.width = TW
@@ -163,7 +176,7 @@ function landMask(earth) {
 // d3 rotation undone by hand) and read from the texture. Field pixels are a few CSS pixels wide and
 // smoothed when drawn; the field has no detail finer than the 5° samples anyway.
 function fieldGlobe(ctx, g, cx, cy, R, mixAt) {
-  const FS = Math.min(6, Math.max(2, Math.ceil(Math.sqrt(Math.min(g.w * g.h, Math.PI * R * R) / 90000))))
+  const FS = Math.min(6, Math.max(2, Math.ceil(Math.sqrt(Math.min(g.w * g.h, Math.PI * R * R) / 50000))))
   const fw = Math.ceil(g.w / FS)
   const fh = Math.ceil(g.h / FS)
   if (fw <= 0 || fh <= 0 || !(R > 0)) return
@@ -255,7 +268,7 @@ export default function Globe({ cells, step = 5, paint, paintKey, mark, sweep = 
     g.marksFrom = fresh || !g.marks ? new Uint8Array(cells.length) : g.marks
     g.marks = marks
     g.landOnly = landOnly
-    g.texFrom = fresh ? null : g.tex
+    g.texFrom = fresh ? buildTex(g, new Float32Array(cells.length * 5)) : g.tex // fresh: grow in over bare land
     g.tex = buildTex(g, to)
     g.sweep = sweep
     g.settled = false
@@ -304,7 +317,7 @@ export default function Globe({ cells, step = 5, paint, paintKey, mark, sweep = 
       if (!earth) return
       g.earth = earth
       g.mask = landMask(earth)
-      if (g.landOnly && g.tex) { // the first paint had no coastline to cut the ocean away with
+      if (g.tex) { // the first paint had no land to draw under the field or to cut the ocean away with
         g.tex = buildTex(g, g.tex.col)
         if (g.texFrom) g.texFrom = buildTex(g, g.texFrom.col)
       }
@@ -361,7 +374,7 @@ export default function Globe({ cells, step = 5, paint, paintKey, mark, sweep = 
       ctx.beginPath(); path(SPHERE); ctx.fill()
 
       ctx.beginPath(); path(graticule); ctx.strokeStyle = 'rgba(150,175,200,0.07)'; ctx.lineWidth = 1; ctx.stroke()
-      if (g.earth) { ctx.beginPath(); path(g.earth.land); ctx.fillStyle = '#16222e'; ctx.fill() }
+      if (g.earth && g.squares) { ctx.beginPath(); path(g.earth.land); ctx.fillStyle = `rgb(${LAND})`; ctx.fill() } // the field has it baked in
 
       // where the sweep runs: the visible part of the disk or the map
       const half = globe ? R : k * Math.PI
@@ -446,7 +459,7 @@ export default function Globe({ cells, step = 5, paint, paintKey, mark, sweep = 
         ctx.beginPath()
         for (let i = 0; i < n; i++) {
           if (!vis[i] || g.cur[i * 5 + 3] < 0.01) continue
-          ctx.moveTo(p[i][0] + r, p[i][1]); ctx.arc(p[i][0], p[i][1], r, 0, 2 * Math.PI)
+          ctx.rect(p[i][0] - r, p[i][1] - r, 2 * r, 2 * r) // a 2-4 px square reads as a dot and costs far less than an arc
         }
         ctx.fillStyle = 'rgba(8,12,18,0.55)'; ctx.fill()
       }
