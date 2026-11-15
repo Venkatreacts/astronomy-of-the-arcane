@@ -384,7 +384,7 @@ table.sweeptable td.small { max-width: 34ch; }
 .scene h3.step { margin-top: 16px; }
 .scene-visual { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .scene-big { font: 700 clamp(30px, 4vw, 52px)/1.05 var(--display); margin: 24px 0; color: var(--ink); }
-.subtitle { margin: 12px 0 0; padding: 12px 14px; background: rgb(0 0 0 / .55); border-left: 3px solid var(--honest-ink);
+.subtitle { margin: 12px 0 0; padding: 12px 14px; background: rgb(0 0 0 / .55);
   font-size: 18px; line-height: 1.45; color: var(--ink); max-width: 80ch; min-height: 4.4em; }
 .player-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
 .player-controls .dots { display: flex; gap: 6px; margin-left: auto; }
